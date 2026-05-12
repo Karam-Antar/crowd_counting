@@ -2,7 +2,7 @@
 venv/
 myenv/
 **/lightning_logs
-models/
+trained_models/
 .DS_Store
 # Python
 __pycache__/
@@ -16,6 +16,7 @@ __pycache__/
 
 # Data & Models
 *.pt
+*.pt2
 *.pth
 *.ckpt
 *.h5
