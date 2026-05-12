@@ -1,0 +1,23 @@
+.venv/
+venv/
+myenv/
+**/lightning_logs
+models/
+.DS_Store
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.ipynb_checkpoints
+
+# Lightning / IDE / System
+.idea/
+.bash_history
+
+# Data & Models
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.db
+data/
