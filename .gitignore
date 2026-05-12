@@ -1,6 +1,7 @@
 .venv/
 venv/
 myenv/
+/data
 **/lightning_logs
 trained_models/
 .DS_Store
@@ -21,4 +22,3 @@ __pycache__/
 *.ckpt
 *.h5
 *.db
-data/
