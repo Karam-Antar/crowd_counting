@@ -1,44 +1,57 @@
 import torch
+import torch.nn.functional as F
 from torch.export import ExportedProgram
 from torch.utils.data import DataLoader
 import lightning.pytorch as pl
 import torchmetrics
-from torchmetrics import MetricCollection, Accuracy, Precision, Recall, F1Score
-from typing import Union, List, Dict, Optional, Tuple
+from torchmetrics import MetricCollection, MeanAbsoluteError, MeanSquaredError
+from typing import Union, Dict, Optional, Tuple
 from src import config
-from src.core import inference
 
 class ExportedModel:
     """
-    A production wrapper for torch.ExportedProgram.
+    A production wrapper for torch.ExportedProgram tailored for Crowd Counting.
     Handles high-level evaluation and single-input inference.
     """
-    def __init__(self, exported_program: ExportedProgram, class_names: List[str]=config.CLASS_NAMES, device: str = config.device, metrics: Optional[MetricCollection] = None):
+    def __init__(self, exported_program: ExportedProgram, device: str = config.device, metrics: Optional[MetricCollection] = None):
         self.exported_program = exported_program
-        self.class_names = class_names
-        self.num_classes = len(self.class_names)
         self.device = torch.device(device)
         
         # Extract the optimized callable module from the exported program
         self.model = self.exported_program.module().to(self.device)
-        # self.model.eval()
+        
         if metrics is None:
-            # Default suite of metrics if none provided
+            # Standard Crowd Counting metrics
             self.metrics = MetricCollection({
-                "acc": Accuracy(task="multiclass", num_classes=self.num_classes),
-                "precision": Precision(task="multiclass", num_classes=self.num_classes),
-                "recall": Recall(task="multiclass", num_classes=self.num_classes),
-                "f1": F1Score(task="multiclass", num_classes=self.num_classes)
+                "MAE": MeanAbsoluteError(),
+                "MSE": MeanSquaredError()
             }).to(self.device)
         else:
             self.metrics = metrics.to(self.device)
 
     @torch.no_grad()
-    def predict(self, x: torch.Tensor) -> Tuple[str, int, float]:
+    def predict(self, x: torch.Tensor) -> Tuple[float, torch.Tensor]:
         """
         Custom inference method for single inputs.
+        Returns:
+            - total_count (float): The estimated number of people in the image.
+            - density_map (torch.Tensor): The 2D spatial distribution of the crowd.
         """
-        return inference.predict(self.model, x, self.device)
+        x = x.to(self.device)
+        
+        # Add batch dimension if it's a single image: [C, H, W] -> [1, C, H, W]
+        if x.dim() == 3:
+            x = x.unsqueeze(0)
+            
+        density_map = self.model(x)
+        
+        # Ensure no negative predictions (same as your CrowdCounter head logic)
+        density_map = F.relu(density_map) 
+        
+        # The total count is the integral (sum) of the density map
+        total_count = density_map.sum().item()
+        
+        return total_count, density_map.squeeze(0) # Remove batch dim for return
     
     @torch.no_grad()
     def __call__(self, x: torch.Tensor):
@@ -47,10 +60,10 @@ class ExportedModel:
     @torch.no_grad()
     def evaluate(self, data: Union[DataLoader, pl.LightningDataModule]) -> Dict[str, float]:
         """
-        Runs evaluation and returns a dictionary of all computed metrics.
+        Runs evaluation and returns a dictionary of all computed metrics (e.g., MAE, MSE).
         """
         if isinstance(data, pl.LightningDataModule):
-            data.setup()
+            data.setup(stage="test")
             loader = data.val_dataloader() or data.test_dataloader()
         else:
             loader = data
@@ -61,13 +74,19 @@ class ExportedModel:
         for batch_x, batch_y in loader:
             batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
             
-            logits = self.model(batch_x)
-            preds = torch.argmax(logits, dim=1)
+            # 1. Forward pass
+            pred_density = self.model(batch_x)
+            pred_density = F.relu(pred_density)
             
-            # MetricCollection updates all metrics at once
-            self.metrics.update(preds, batch_y)
+            # 2. Calculate the counts by summing across spatial and channel dimensions
+            # Assuming shape is [Batch, Channel, Height, Width]
+            pred_count = pred_density.sum(dim=(1, 2, 3))
+            gt_count = batch_y.sum(dim=(1, 2, 3))
+            
+            # 3. MetricCollection updates all metrics simultaneously
+            self.metrics.update(pred_count, gt_count)
 
-        # compute() returns a dict: {'acc': tensor(0.9), 'f1': tensor(0.88), ...}
+        # compute() returns a dict: {'MAE': tensor(12.5), 'MSE': tensor(150.2)}
         results = self.metrics.compute()
         
         # Convert tensors to standard python floats for the final return

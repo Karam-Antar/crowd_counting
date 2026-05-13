@@ -27,7 +27,7 @@ class BaseLitModel(pl.LightningModule):
             'rmse': torchmetrics.MeanSquaredError(squared=False),
             'nae': torchmetrics.MeanAbsolutePercentageError()
         })
-
+        self.criterion = torch.nn.MSELoss(reduction='sum')
         self.train_metrics = metrics.clone(prefix='train_')
         self.val_metrics = metrics.clone(prefix='val_')
     
@@ -37,12 +37,13 @@ class BaseLitModel(pl.LightningModule):
     
     def _shared_step(self, batch):
         x, y = batch # x: Image, y: Density Map
+        print(x.shape)
         
         # 2. Forward Pass
         preds = self.model(x)
         
         # 3. Loss: Mean Squared Error is standard for Density Maps
-        loss = F.mse_loss(preds, y)
+        loss = self.criterion(preds, y)
         
         # 4. Count-based Metrics
         # We compare the SUM of the maps (the actual person count)

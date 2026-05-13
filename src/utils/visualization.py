@@ -216,8 +216,11 @@ def visualize_feature_maps(model, history, layer_name, input_tensor=None, cmap='
     visualize_feature_maps_grid(history[layer_name].activation, layer_name, cmap)
 
 
-def visualize_model_graph(model: torch.nn.Module, datamodule):
-    sample = helpers.get_sample_from_dm(datamodule)
+def visualize_model_graph(model: torch.nn.Module, datamodule=None, sample=None):
+    if sample is None:
+        if datamodule is None:
+            raise ValueError('Either sample or datamodule should be provided.')
+        sample = helpers.get_sample_from_dm(datamodule)
     # history = torchlens.log_forward_pass(model, helpers.get_sample_from_dm(datamodule))
     try: 
         graph = torchlens.visualization.show_model_graph(

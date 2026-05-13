@@ -7,17 +7,19 @@ from src.utils import helpers
 @dataclass
 class BaseParams:
     """Base parameter class."""
-    image_size: int = 180
+    image_size: Optional[int] = None
     crop_size: Optional[int] = None
     backbone: Optional[str] = None
     model_class: str = 'CrowdCounter'
     batch_size: int = 16
     epochs: int = 15
     aug_factor: Optional[float] = None
+    padding_multiple: int = 32
     num_ops: Optional[int] = None
     train_size: Optional[int] = None
     l2_reg: Optional[float] = None
     trainable_backbone: bool = False
+    neck_out_channels: int = 64
     backbone: str = 'hrnet_w18'
     unfrozen_blocks: Optional[tuple] = None
     dropout: Optional[float] = 0.25

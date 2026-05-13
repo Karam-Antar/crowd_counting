@@ -11,12 +11,13 @@ import torch
 from src import config
 from src.core.exported_model import ExportedModel
 from src.core.params import BaseParams
+from src.models.lit_model import BaseLitModel
 from src.utils import helpers
 from src.utils.model_persistence import load_model, save_model
 import urllib.parse
 from litlogger import Experiment
-import json
-from src.utils.registries import PARAMS_REGISTRY
+# import json
+# from src.utils.registries import PARAMS_REGISTRY
 
 
 def add_metadata(artifacts_path: Path, params: BaseParams, lit_experiment: Experiment):
@@ -95,10 +96,11 @@ def load_params(downloaded_paths: list[str], download_dir: str):
     if params_relative_path is None:
         raise FileNotFoundError("No .json file found in the downloaded model artifacts!")
     try:
-        with open(f'{download_dir}/{params_relative_path}', 'r') as file:
-            data = json.load(file)
-        flat_data = helpers.flatten_dict(data, to_str=True)
-        params = PARAMS_REGISTRY[flat_data.get('params.model_class')].from_dict(data)
+        # with open(f'{download_dir}/{params_relative_path}', 'r') as file:
+        #     data = json.load(file)
+        # flat_data = helpers.flatten_dict(data, to_str=True)
+        # params = PARAMS_REGISTRY[flat_data.get('params.model_class')].from_dict(data)
+        params = BaseParams.from_json(f'{download_dir}/{params_relative_path}')
     except Exception as e:
         print(e)
         params = None
