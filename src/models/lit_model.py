@@ -57,8 +57,8 @@ class BaseLitModel(pl.LightningModule):
         
         # Update and log all metrics at once
         output = self.train_metrics(pred_count, gt_count)
-        self.log_dict(self.train_metrics, on_epoch=True, prog_bar=True)
-        self.log('train_loss', loss, on_epoch=True, prog_bar=True)
+        self.log_dict(self.train_metrics, on_step=False, on_epoch=True, prog_bar=True)
+        self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
         
         return loss
 
@@ -67,8 +67,8 @@ class BaseLitModel(pl.LightningModule):
         
         # Update and log all metrics at once
         self.val_metrics(pred_count, gt_count)
-        self.log_dict(self.val_metrics, on_epoch=True, prog_bar=True)
-        self.log('val_loss', loss, on_epoch=True, prog_bar=True)
+        self.log_dict(self.val_metrics, on_step=False, on_epoch=True, prog_bar=True)
+        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
     
 
     def configure_optimizers(self):

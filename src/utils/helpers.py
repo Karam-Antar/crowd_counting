@@ -2,10 +2,12 @@
 from collections import defaultdict
 import datetime
 import glob
+import multiprocessing
 from pathlib import Path
 import re
 from PIL import Image
 import h5py
+import litlogger
 import numpy as np
 import torch
 import torch.nn as nn
@@ -184,6 +186,23 @@ def to_snake_case(name: str) -> str:
     s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
     
     return s2.lower()
+
+
+def check_experiment_existence(name: str, queue: multiprocessing.Queue):
+    try:
+        # Ping the cloud API safely inside the sandbox
+        exp = litlogger.init(name=name)
+        has_data = len(exp.metadata) > 0
+        
+        # If it's taken, cleanly close the scout connection
+        if has_data:
+            exp.finalize('aborted')
+            
+        # Send the boolean answer back to the main process
+        queue.put(has_data)
+    except Exception as e:
+        print(f"Cloud scout warning: {e}")
+        queue.put(False) # Safe fallback if API errors out
 
 
 def get_sample_from_dm(datamodule, index=0):
