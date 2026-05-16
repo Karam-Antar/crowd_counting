@@ -16,8 +16,10 @@ from src.utils.helpers import get_study_best_value
 from src import config
 from abc import ABC, abstractmethod
 
+from src.utils.model_registry import BaseRegistry, MLFlowRegistry, ModelPayload
 
-class BaseExperiment(ABC):
+
+class BaseExperimentRunner(ABC):
     """Base PyTorch Lightning engine handling model building and the core training loop."""
 
     def __init__(
@@ -33,6 +35,7 @@ class BaseExperiment(ABC):
         self.monitor_mode = monitor_mode
         self.params: Optional[BaseParams] = None
         self.tracker: Optional[BaseTracker] = None
+        self.registry: Optional[BaseRegistry] = None
 
     def _build_model(self) -> pl.LightningModule:
         return self.lit_model_cls(self.params)
@@ -64,11 +67,11 @@ class BaseExperiment(ABC):
         ]
 
     def _run_training(self):
-        lit_model = self._build_model()
         self.datamodule = CrowdDataModule(params=self.params)
-        
+        self.datamodule.setup('fit')
+        lit_model = self._build_model()
         pl_logger = self.tracker.get_logger()
-        pl_logger.log_hyperparams(self.params.to_dict(flatten=True, to_str=True))
+        # pl_logger.log_hyperparams(self.params.to_dict(flatten=True, to_str=True))
 
         callbacks = self._get_default_callbacks()
 
@@ -79,8 +82,8 @@ class BaseExperiment(ABC):
             enable_progress_bar=False,
             accelerator='auto',
             log_every_n_steps=1,
-            limit_train_batches=2,
-            limit_val_batches=2,
+            limit_train_batches=1,
+            limit_val_batches=1,
         )
 
         trainer.fit(lit_model, datamodule=self.datamodule)
@@ -100,7 +103,7 @@ class BaseExperiment(ABC):
         pass
 
 
-class StandardRunner(BaseExperiment):
+class StandardRunner(BaseExperimentRunner):
     """Subclass for standard single-run execution."""
 
     def __init__(
@@ -110,11 +113,13 @@ class StandardRunner(BaseExperiment):
         monitor_metric: str = "val_nae", 
         monitor_mode: str = "min",
         lit_model_cls: type[pl.LightningModule] = BaseLitModel,
+        registry: Optional[BaseRegistry] = MLFlowRegistry(),
         params: Optional[BaseParams] = None,
         ckpt_path: Optional[str] = None
     ):
         super().__init__(model_cls, monitor_metric, monitor_mode, lit_model_cls)
         self.tracker = tracker
+        self.registry = registry
         self.params = params
         self.ckpt_path = ckpt_path
 
@@ -128,17 +133,31 @@ class StandardRunner(BaseExperiment):
         """Executes a single training run using a pre-configured Tracker instance."""
         self.tracker.start_run()
 
-        lit_model, path, metrics = self._run_training()
+        try:
+            lit_model, best_path, metrics = self._run_training()
+            if self.registry:
+                payload = ModelPayload(
+                    model=lit_model,
+                    tracker=self.tracker,
+                    params=self.params,
+                    metrics=metrics,
+                    ckpt_path=best_path
+                )
+                self.registry.upload_model(payload)
+        except Exception as e:
+            # print(e)
+            self.tracker.end_run('failed')
+            raise e
         
         self.tracker.end_run('success')
             
         val_metrics = {k: v for k,v in metrics.items() if 'val' in k}
         train_metrics = {k: v for k,v in metrics.items() if 'train' in k}
         
-        return lit_model, path, {"val": val_metrics}, {"train": train_metrics}
+        return lit_model, best_path, {"val": val_metrics}, {"train": train_metrics}
 
 
-class OptunaTuner(BaseExperiment):
+class OptunaTuner(BaseExperimentRunner):
     """Subclass for Optuna hyperparameter optimization."""
 
 
@@ -146,12 +165,22 @@ class OptunaTuner(BaseExperiment):
         self,
         experiment: str,
         model_cls: type[torch.nn.Module],
+        study_name_suffix: str, 
         monitor_metric: str = "val_nae", 
         monitor_mode: str = "min",
         lit_model_cls: type[pl.LightningModule] = BaseLitModel,
+        tracker_cls: type[BaseTracker] = MLFlowTracker, # Accept the blueprint class here
+        params_cls: type[BaseParams] = BaseParams, 
+        n_trials: int = 12,
+        registry_cls: Optional[type[BaseRegistry]] = None,
     ):
         super().__init__(model_cls, monitor_metric, monitor_mode, lit_model_cls)
         self.experiment = experiment
+        self.study_name_suffix = study_name_suffix
+        self.tracker_cls = tracker_cls
+        self.params_cls = params_cls
+        self.n_trials = n_trials
+        self.registry_cls = registry_cls
 
 
     def _get_default_callbacks(self):
@@ -170,30 +199,42 @@ class OptunaTuner(BaseExperiment):
         return best_value
 
 
-    def run(
-        self, 
-        study_name_suffix: str, 
-        tracker_cls: type[BaseTracker], # Accept the blueprint class here
-        params_cls: type[BaseParams] = BaseParams, 
-        n_trials: int = 12
-    ) -> optuna.Study:
+    def run(self) -> optuna.Study:
         
-        study_name = f"{self.experiment}/{study_name_suffix}"
+        study_name = f"{self.experiment}/{self.study_name_suffix}"
         study_exp_name = f"{self.experiment}_studies"
         
         def objective(trial: optuna.Trial) -> float:
             run_name = f"trial_{trial.number}"
             
             # Spawn a new tracker instance for this trial
-            self.tracker = tracker_cls(
+            self.tracker = self.tracker_cls(
                 experiment=study_exp_name, 
-                run_name=[study_name_suffix, run_name]
+                run_name=[self.study_name_suffix, run_name]
             )
+            if self.registry_cls:
+                self.registry = self.registry_cls()
             self.tracker.start_run()
-            self.params = params_cls.suggest(trial)
+            self.params = self.params_cls.suggest(trial)
             self.current_trial = trial
             
-            lit_model, best_path, metrics = self._run_training()
+            try:
+                lit_model, best_path, metrics = self._run_training()
+                if self.registry:
+                    payload = ModelPayload(
+                        model=lit_model,
+                        tracker=self.tracker,
+                        params=self.params,
+                        metrics=metrics,
+                        ckpt_path=best_path
+                    )
+                    self.registry.upload_model(payload)
+            except optuna.exceptions.TrialPruned:
+                self.tracker.end_run('killed') # Or whatever status MLFlow expects
+                raise
+            except Exception as e:
+                self.tracker.end_run('failed')
+                raise e
             
             target_metric_value = metrics.get(f"best_{self.monitor_metric}")
             trial.set_user_attr(f"best_{self.monitor_metric}", target_metric_value)
@@ -216,6 +257,6 @@ class OptunaTuner(BaseExperiment):
             sampler=optuna.samplers.TPESampler(seed=config.SEED),
         )
 
-        study.optimize(objective, n_trials=n_trials)
+        study.optimize(objective, n_trials=self.n_trials)
             
         return study

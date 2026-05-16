@@ -86,9 +86,11 @@ class CrowdDataModule(pl.LightningDataModule):
     def setup(self, stage=None):
         train_path = os.path.join(self.data_root, "train_data")
         test_path = os.path.join(self.data_root, "test_data")
-
+        print('train_size:', self.params.train_size)
         # We create separate dataset objects for train and val to use different transforms
         if stage == "fit" or stage is None:
+            if self.params.train_size:
+                return 
             full_train_ds = ShanghaiTechDataset(
                 img_dir=os.path.join(train_path, "images"),
                 h5_dir=os.path.join(train_path, "ground-truth-h5")

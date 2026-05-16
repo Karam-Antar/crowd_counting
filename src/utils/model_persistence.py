@@ -9,6 +9,23 @@ from src import config
 from src.core.params import BaseParams
 
 
+def prepare_model_to_export(params, model):
+    image_size = int(params.image_size) if params.image_size else 256
+    example_input = torch.randn(4, 3, image_size, image_size)
+    batch = Dim("batch")
+    height = Dim('height')
+    width = Dim('width')
+    model.eval()
+    dynamic_shapes = {
+            "x": {
+                0: batch,   # dynamic batch size
+                # 1: Dim('channels'),
+                2: params.padding_multiple * height,  # dynamic height
+                3: params.padding_multiple * width,   # dynamic width
+            }
+        }
+    return example_input, dynamic_shapes
+
 def save_model(model: pl.LightningModule, params: BaseParams, architecture: str = '', model_id: str = None, model_path: str | None = None, extension: str = 'pt2'):
     """Save a PyTorch Lightning model to disk in TorchScript format.
 
@@ -29,28 +46,16 @@ def save_model(model: pl.LightningModule, params: BaseParams, architecture: str 
     # Convert the LightningModule to TorchScript and save it directly.
     # By default, Lightning only scripts the forward() pass for inference.
     # model.to_torchscript(file_path=model_path, method='script')
-    image_size = int(params.image_size) if params.image_size else 256
-    example_input = torch.randn(4, 3, image_size, image_size)
-    model.eval()
-    batch = Dim("batch")
-    height = Dim('height')
-    width = Dim('width')
+    example_input, dynamic_shapes = prepare_model_to_export(params, model)
     exported_model = export(
         model,
         (example_input,),
-        dynamic_shapes={
-            "x": {
-                0: batch,   # dynamic batch size
-                # 1: Dim('channels'),
-                2: params.padding_multiple * height,  # dynamic height
-                3: params.padding_multiple * width,   # dynamic width
-            }
-        }
+        dynamic_shapes=dynamic_shapes
     )
     save(exported_model, model_path)
 
     print(f"Model saved in export format to {model_path}")
-    return model_path
+    return exported_model
 
 
 def load_model(model_path: str, device: str = config.device):

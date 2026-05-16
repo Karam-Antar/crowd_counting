@@ -14,6 +14,8 @@ class BaseTracker(ABC):
         self.nested = isinstance(run_name, list)
         if self.nested:
             run_name = [e if e else str(timestamp()) for e in run_name]
+        # self.model_name = 'model'
+        # self.full_experiment_name = 'experiment'
     
     @abstractmethod
     def get_logger(self) -> Logger:
@@ -46,7 +48,8 @@ class LitTracker(BaseTracker):
 
     def get_logger(self) -> Logger:
         self.current_name = f'{self.experiment}/{self.full_run_name}'
-        return LitLogger(name=self.current_name, save_logs=False)
+        self.logger = LitLogger(name=self.current_name, save_logs=False)
+        return self.logger
 
     def start_run(self):
         # LitLogger handles runs dynamically via init(), no strict pre-start needed
@@ -62,6 +65,14 @@ class LitTracker(BaseTracker):
         if self.active_experiment:
             self.active_experiment.finalize(status)
             self.active_experiment = None
+    
+    @property
+    def model_name(self) -> str:
+        return self.full_run_name.replace('/', '_')
+
+    @property
+    def full_experiment_name(self) -> str:
+        return f'{self.experiment}/{self.full_run_name}'
 
 
 class MLFlowTracker(BaseTracker):
@@ -77,22 +88,32 @@ class MLFlowTracker(BaseTracker):
 
 
     def get_logger(self) -> Logger:
-        return MLFlowLogger(experiment_name=self.experiment, run_name=self.logger_name)
+        run_tags = {}
+        if self.base_run_id:
+            run_tags["mlflow.parentRunId"] = self.base_run_id
+        self.logger = MLFlowLogger(experiment_name=self.experiment, run_name=self.logger_name, tags=run_tags, synchronous=False)
+        return self.logger
 
     def start_run(self):
         mlflow.set_experiment(self.experiment)
         if self.base_run:
-            mlflow.start_run(run_name=self.base_run, run_id=self._get_existing_run_id(self.base_run))
+            self.base_run_id = mlflow.start_run(run_name=self.base_run, run_id=self._get_existing_run_id(self.base_run)).info.run_id
 
     def log_results(self, metrics: dict, params: dict):
-        mlflow.log_metrics(metrics)
-        mlflow.log_params(params)
+        self.logger.log_metrics(metrics)
+        # mlflow.log_params(params)
 
     def end_run(self, status: str = 'success'):
         if self.base_run:
             mlflow.end_run()
-            
     
+    @property
+    def model_name(self) -> str:
+        return f'{self.base_run}_{self.sub_run}' if self.nested else self.logger_name
+    
+    @property
+    def full_experiment_name(self) -> str:
+        return f'{self.experiment}/{self.model_name.replace('_', '/')}'
 
     def _get_existing_run_id(self, run_name: str) -> Optional[str]:
         runs = mlflow.search_runs(
