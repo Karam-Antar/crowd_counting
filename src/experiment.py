@@ -1,4 +1,3 @@
-import multiprocessing
 import os
 import datetime
 import optuna
@@ -68,27 +67,20 @@ class Experiment:
 
         return final_metrics
     
-    def _get_logger_name(self, base_name: str):
-        queue = multiprocessing.Queue()
-        scout_process = multiprocessing.Process(
-            target=helpers.check_experiment_existence, 
-            args=(base_name, queue)
-        )
-        scout_process.start()
-        
-        # 3. Wait for the exact answer from the cloud (with a safety timeout)
-        has_data = queue.get(timeout=15)
-        
-        # 4. Safely kill the sandbox. All ghost hooks and background 
-        # threads are instantly wiped from your machine's memory.
-        scout_process.join()
-        return helpers.get_unique_experiment_name(base_name) if has_data else base_name
-
     def _create_logger(self, name: str):
-        safe_name = self._get_logger_name(name)
-        # 5. Initialize the PyTorch Lightning logger EXACTLY ONCE
-        logger = LitLogger(name=safe_name, save_logs=False)
-        
+        # logger = LitLogger(name=name, save_logs=False)
+        # metadata = logger.experiment.metadata
+        lit_experiment = litlogger.init(name=name)
+        metadata = lit_experiment.metadata
+        # # print('metadata', metadata)
+        # # print(len(metadata))
+        if len(metadata):
+            lit_experiment.finalize('aborted')
+            # if hasattr(logger.experiment, 'finalize'):
+            #     logger.experiment.finalize('aborted')
+            logger = LitLogger(name=helpers.get_unique_experiment_name(name), save_logs=False)
+        else:
+            logger = LitLogger(name=name, save_logs=False)
         return logger
 
     def _upload_model_artifact(self, lit_model: pl.LightningModule, model_name: str, lit_experiment: litlogger.Experiment, params_dict: dict, ckpt_path: str | None = None):
@@ -126,8 +118,8 @@ class Experiment:
         lit_model = self._build_model(params, ckpt_path)
         self.datamodule = CrowdDataModule(params=params)
         
-        logger = self._create_logger(f'{lit_experiment_path}/{run_name}')
-        logger.log_hyperparams(params.to_dict(flatten=True, to_str=True))
+        pl_logger = self._create_logger(f'{lit_experiment_path}/{run_name}')
+        pl_logger.log_hyperparams(params.to_dict(flatten=True, to_str=True))
 
         callbacks = self._get_default_callbacks()
         
@@ -136,12 +128,13 @@ class Experiment:
 
         trainer = pl.Trainer(
             max_epochs=params.epochs,
-            logger=logger,
+            logger=pl_logger,
             callbacks=callbacks,
             enable_progress_bar=False,
             accelerator='auto',
-            limit_train_batches=1,
-            limit_val_batches=1,
+            log_every_n_steps=1,
+            limit_train_batches=2,
+            limit_val_batches=2,
         )
 
         trainer.fit(lit_model, datamodule=self.datamodule)
@@ -152,7 +145,7 @@ class Experiment:
 
         metrics = self._evaluate_model(trainer, lit_model)
 
-        lit_experiment = litlogger.init(name=logger.name)
+        lit_experiment = litlogger.init(name=pl_logger.name)
         lit_experiment.log_metrics(metrics)
         lit_experiment.log_metadata(params.to_dict(flatten=True, to_str=True))
 

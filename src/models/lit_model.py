@@ -37,7 +37,7 @@ class BaseLitModel(pl.LightningModule):
     
     def _shared_step(self, batch):
         x, y = batch # x: Image, y: Density Map
-        print(x.shape)
+        # print(x.shape)
         
         # 2. Forward Pass
         preds = self.model(x)

@@ -33,17 +33,35 @@ class BaseParams:
     extra: Dict = field(default_factory=dict)
     suggested_params: bool = False
     min_lr_pct: Optional[float] = None
-
     @classmethod
-    def suggest(cls, trial: optuna.Trial) -> dict:
-        return dict(
-            image_size=trial.suggest_categorical("image_size", [128, 160, 180]),
-            # crop_size=trial.suggest_categorical("crop_size", [128, 160, 180]),
-            batch_size=trial.suggest_categorical("batch_size", [1, 1, 1]),
-            lr=trial.suggest_float("lr", 1e-4, 1e-3, log=True),
-            l2_reg=trial.suggest_float("l2_reg", 1e-4, 1e-3, log=True),
-            # min_lr_pct=trial.suggest_float("min_lr_pct", 0.01, 0.2),
-            aug_factor=trial.suggest_float("aug_factor", 0.05, 0.15),
+    def suggest(cls, trial: optuna.Trial) -> "BaseParams":
+        return cls(
+            # Image & Data Augmentation
+            image_size=trial.suggest_categorical("image_size", [512, 768, 1024]), # Adjust based on dataset
+            crop_size=trial.suggest_categorical("crop_size", [128, 256, 512]),    # 256 is standard for crowd counting
+            aug_factor=trial.suggest_float("aug_factor", 0.0, 0.3),
+            num_ops=trial.suggest_int("num_ops", 1, 4),
+
+            # Architecture tweaks
+            backbone=trial.suggest_categorical("backbone", ['hrnet_w18', 'hrnet_w32', 'hrnet_w48']),
+            trainable_backbone=trial.suggest_categorical("trainable_backbone", [True, False]),
+            neck_out_channels=trial.suggest_categorical("neck_out_channels", [32, 64, 128]),
+            dropout=trial.suggest_float("dropout", 0.0, 0.5),
+
+            # Training hardware/flow limits
+            batch_size=trial.suggest_categorical("batch_size", [1, 2, 4, 8]),     # Kept small for high-res density maps
+
+            # Optimization & Regularization
+            lr=trial.suggest_float("lr", 1e-5, 1e-2, log=True),
+            l2_reg=trial.suggest_float("l2_reg", 1e-5, 1e-2, log=True),
+            lr_schedule=trial.suggest_categorical("lr_schedule", ["cosine", "step", "reduce_on_plateau"]),
+            min_lr_pct=trial.suggest_float("min_lr_pct", 0.01, 0.1),
+            
+            # Decay logic (if step decay is chosen)
+            decay_steps=trial.suggest_categorical("decay_steps", [5, 10, 15]),
+            decay_rate=trial.suggest_float("decay_rate", 0.5, 0.9),
+
+            # Flag indicating this was generated via Optuna
             suggested_params=True
         )
     

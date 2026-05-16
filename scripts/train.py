@@ -50,8 +50,8 @@ def single_run(experiment_name: str, architecture: str, run_name: str, model_cls
     print(f"training: {train_results}")
 
 def tune(experiment_name: str, architecture: str, run_name: str, n_trials: int = 20):
-    model_cls = None
-    params_cls = None
+    model_cls = CrowdCounter
+    params_cls = BaseParams
     trainer = Experiment(
         experiment_name=experiment_name,
         architecture=architecture,
@@ -63,12 +63,12 @@ def main():
     # import os
     # os.environ["TORCH_LOGS"] = "+dynamic"
     experiment_name = "crowd_counting"
-    run_name = 'trial_5'
-    # tune(experiment_name, 'var_arc', run_name, n_trials=2)
+    run_name = None
+    # tune(experiment_name, 'hrnet', run_name, n_trials=2)
     params = BaseParams(
         crop_size=256,
-        batch_size=1,
-        epochs=6,
+        batch_size=2,
+        epochs=10,
         lr=0.0006,
         # architecture=architecture,
         # trainable_backbone=False,  # Fine-tune only the head

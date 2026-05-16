@@ -195,8 +195,8 @@ def check_experiment_existence(name: str, queue: multiprocessing.Queue):
         has_data = len(exp.metadata) > 0
         
         # If it's taken, cleanly close the scout connection
-        if has_data:
-            exp.finalize('aborted')
+        # if has_data:
+        exp.finalize('aborted')
             
         # Send the boolean answer back to the main process
         queue.put(has_data)

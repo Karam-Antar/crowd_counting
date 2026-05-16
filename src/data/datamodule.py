@@ -47,10 +47,10 @@ class CrowdDataModule(pl.LightningDataModule):
         ])
         
         self.train_image_augs = v2.Compose([
-            v2.RandAugment(
-                num_ops=params.num_ops or 4, 
-                magnitude=int(params.aug_factor * 30)
-            ) if params.aug_factor else v2.Identity(),                                                      # Applied ONLY to Image
+            # v2.RandAugment(
+            #     num_ops=params.num_ops or 4, 
+            #     magnitude=int(params.aug_factor * 30)
+            # ) if params.aug_factor else v2.Identity(),                                                      # Applied ONLY to Image
             v2.ToDtype(torch.float32, scale=True),                  # Applied ONLY to Image
             v2.Normalize(mean=mean, std=std)                        # Applied ONLY to Image
         ])
