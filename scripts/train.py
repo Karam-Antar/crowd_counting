@@ -63,7 +63,7 @@ def main():
     # import os
     # os.environ["TORCH_LOGS"] = "+dynamic"
     experiment_name = "crowd_counting"
-    run_name = 'check1'
+    run_name = 'check2'
     # tune(experiment_name, 'hrnet', run_name, n_trials=2)
     params = BaseParams(
         crop_size=256,

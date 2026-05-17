@@ -1,0 +1,98 @@
+import os
+import datetime
+import lightning.pytorch as pl
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from typing import Optional, Type
+import torch
+from abc import ABC, abstractmethod
+
+from src.data.datamodule import CrowdDataModule
+from src.models.lit_model import BaseLitModel
+from src.core.params import BaseParams
+from src.core.callbacks import ReseedCallback
+from src.utils.experiment_trackers import BaseTracker
+from src.utils.model_registry import BaseRegistry
+
+
+class BaseExperimentRunner(ABC):
+    """Base PyTorch Lightning engine handling model building and the core training loop."""
+
+    def __init__(
+        self,
+        model_cls: type[torch.nn.Module],
+        monitor_metric: str = "val_nae", 
+        monitor_mode: str = "min",
+        lit_model_cls: type[pl.LightningModule] = BaseLitModel,
+    ):
+        self.model_cls = model_cls
+        self.lit_model_cls = lit_model_cls
+        self.monitor_metric = monitor_metric
+        self.monitor_mode = monitor_mode
+        self.params: Optional[BaseParams] = None
+        self.tracker: Optional[BaseTracker] = None
+        self.registry: Optional[BaseRegistry] = None
+
+    def _build_model(self) -> pl.LightningModule:
+        return self.lit_model_cls(self.params)
+
+    def _evaluate_model(self, trainer: pl.Trainer, model: pl.LightningModule) -> dict:
+        val_results = trainer.validate(model, datamodule=self.datamodule, verbose=False)[0]
+        train_results = trainer.validate(model, dataloaders=self.datamodule.train_eval_dataloader(), verbose=False)[0]
+
+        final_metrics = {}
+        for metric_name, value in val_results.items():
+            final_metrics[f"best_{metric_name}"] = value
+
+        for metric_name, value in train_results.items():
+            train_key = metric_name.replace("val_", "train_", 1) if metric_name.startswith("val_") else f"train_{metric_name}"
+            final_metrics[f"best_{train_key}"] = value
+
+        return final_metrics
+
+    def _get_default_callbacks(self) -> list:
+        return [
+            EarlyStopping(monitor=self.monitor_metric, patience=50, mode=self.monitor_mode),
+            ReseedCallback(),
+            ModelCheckpoint(
+                monitor=self.monitor_metric, 
+                mode=self.monitor_mode, 
+                save_top_k=1, 
+                dirpath="./checkpoints"
+            )
+        ]
+
+    def _run_training(self):
+        self.datamodule = CrowdDataModule(params=self.params)
+        self.datamodule.setup('fit')
+        lit_model = self._build_model()
+        pl_logger = self.tracker.get_logger()
+        # pl_logger.log_hyperparams(self.params.to_dict(flatten=True, to_str=True))
+
+        callbacks = self._get_default_callbacks()
+
+        trainer = pl.Trainer(
+            max_epochs=self.params.epochs,
+            logger=pl_logger,
+            callbacks=callbacks,
+            enable_progress_bar=False,
+            accelerator='auto',
+            log_every_n_steps=1,
+            limit_train_batches=1,
+            limit_val_batches=1,
+        )
+
+        trainer.fit(lit_model, datamodule=self.datamodule)
+
+        best_path = trainer.checkpoint_callback.best_model_path
+        if best_path:
+            lit_model = self.lit_model_cls.load_from_checkpoint(best_path, weights_only=False)
+
+        metrics = self._evaluate_model(trainer, lit_model)
+
+        self.tracker.log_results(metrics, self.params.to_dict(flatten=True, to_str=True))
+
+        return lit_model, best_path, metrics
+    
+    @abstractmethod
+    def run(self):
+        pass
