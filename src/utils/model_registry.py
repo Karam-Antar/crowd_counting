@@ -185,7 +185,6 @@ class MLFlowRegistry(BaseRegistry):
                 artifacts_path = Path(tmp_dir)
             
             # 3. Add custom metadata and files
-                
                 # The signature here is now clean and beautiful!
                 prepare_temp_dir(artifacts_path, payload, payload.tracker.full_experiment_name)
                 
