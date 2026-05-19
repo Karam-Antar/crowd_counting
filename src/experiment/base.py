@@ -5,7 +5,7 @@ from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from typing import Optional, Type
 import torch
 from abc import ABC, abstractmethod
-
+from lightning.pytorch.callbacks import LearningRateMonitor
 from src.data.datamodule import CrowdDataModule
 from src.models.lit_model import BaseLitModel
 from src.core.params import BaseParams
@@ -52,7 +52,8 @@ class BaseExperimentRunner(ABC):
     def _get_default_callbacks(self) -> list:
         return [
             EarlyStopping(monitor=self.monitor_metric, patience=50, mode=self.monitor_mode),
-            ReseedCallback(),
+            # ReseedCallback(),
+            LearningRateMonitor(logging_interval='epoch'),
             ModelCheckpoint(
                 monitor=self.monitor_metric, 
                 mode=self.monitor_mode, 
@@ -76,7 +77,7 @@ class BaseExperimentRunner(ABC):
             callbacks=callbacks,
             enable_progress_bar=False,
             accelerator='auto',
-            accumulate_grad_batches=16,
+            accumulate_grad_batches=self.params.grad_accumulation,
             # log_every_n_steps=1,
             # limit_train_batches=1,
             # limit_val_batches=1,

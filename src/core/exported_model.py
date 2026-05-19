@@ -63,7 +63,7 @@ class ExportedModel:
             batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
             
             # 1. Forward pass
-            pred_density = self.model(batch_x)
+            pred_density = self.model(batch_x) / config.LABEL_SCALER
             # pred_density = F.relu(pred_density)
             
             # 2. Calculate the counts by summing across spatial and channel dimensions

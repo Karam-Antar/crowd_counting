@@ -18,7 +18,7 @@ def predict(model, x: torch.Tensor, device=config.device):
         if x.dim() == 3:
             x = x.unsqueeze(0)
             
-        density_map = model(x)
+        density_map = model(x) / config.LABEL_SCALER
         
         # Ensure no negative predictions (same as your CrowdCounter head logic)
         density_map = F.relu(density_map) 

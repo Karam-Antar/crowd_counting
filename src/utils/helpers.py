@@ -211,7 +211,7 @@ def get_sample_from_dm(datamodule, index=0):
     
     # Add batch dimension to the image
     sample_image = sample_image.unsqueeze(0)
-    
+    target = target/config.LABEL_SCALER
     # Calculate the ground truth count by summing the density map tensor
     gt_count = target.sum().item()
     

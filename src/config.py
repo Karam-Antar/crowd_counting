@@ -4,6 +4,7 @@ import numpy as np
 import torch
 
 SEED = 42
+LABEL_SCALER = 1000
 # CLASS_NAMES = ["daisy", "dandelion", "roses", "sunflowers", "tulips"]
 MODEL_SAVE_PATH = "/teamspace/studios/this_studio/workspace/crowd_counting/trained_models"
 LOG_DIR = "./logs"

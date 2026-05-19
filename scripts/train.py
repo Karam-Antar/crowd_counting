@@ -63,14 +63,21 @@ def main():
     # import os
     # os.environ["TORCH_LOGS"] = "+dynamic"
     experiment_name = "crowd_counting"
-    run_name = 'trial_3'
+    run_name = 'trial_5'
     # tune(experiment_name, 'hrnet', run_name, n_trials=2)
     params = BaseParams(
-        # crop_size=288,
-        batch_size=1,
-        epochs=10,
+        crop_size=288,
+        batch_size=32,
+        epochs=25,
         lr=0.001,
-        lr_schedule='plateau',
+        # lr_schedule='plateau',
+        # grad_accumulation=16,
+        scheduler_kwargs={
+            "mode": "min",
+            "factor": 0.2,
+            "patience": 2,
+            "min_lr": 3e-5
+        },
         # architecture=architecture,
         # trainable_backbone=False,  # Fine-tune only the head
         # backbone='resnet18',

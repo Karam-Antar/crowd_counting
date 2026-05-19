@@ -27,7 +27,7 @@ class BaseLitModel(pl.LightningModule):
             'rmse': torchmetrics.MeanSquaredError(squared=False),
             'nae': torchmetrics.MeanAbsolutePercentageError()
         })
-        self.criterion = torch.nn.MSELoss(reduction='sum')
+        self.criterion = torch.nn.MSELoss()
         self.train_metrics = metrics.clone(prefix='train_')
         self.val_metrics = metrics.clone(prefix='val_')
     
@@ -123,34 +123,41 @@ class BaseLitModel(pl.LightningModule):
     
     def _get_scheduler_config(self, optimizer):
         """Returns the Lightning scheduler dictionary based on config, or None."""
-        if self.params.lr_schedule == 'plateau':
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, 
-                mode='min', 
-                factor=0.3, 
-                patience=3, 
-                min_lr=self.params.lr * (self.params.min_lr_pct or 0.01)
-            )
-            return {
-                "scheduler": scheduler,
-                "monitor": self.params.monitor_metric, 
-                "interval": "epoch"   
-            }
+        match self.params.lr_schedule:
+            case 'plateau':
+                scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                    optimizer, 
+                    **self.params.scheduler_kwargs
+                )
+                return {
+                    "scheduler": scheduler,
+                    "monitor": self.params.monitor_metric, 
+                    "interval": "epoch"   
+                }
 
-        if self.params.lr_schedule == 'clipped_exp':
-            decay_rate = self.params.decay_rate or 0.96
-            min_lr = self.params.lr * (self.params.min_lr_pct or 0.01)
-            decay_steps = self.params.decay_steps or max(1, self.params.train_size // self.params.batch_size)
+            case 'clipped_exp':
+                decay_rate = self.params.scheduler_kwargs.get('decay_rate', 0.96)
+                min_lr = self.params.lr * self.params.scheduler_kwargs.get('min_lr_pct', 0.01)
+                decay_steps = self.params.scheduler_kwargs.get('decay_steps', max(1, self.params.train_size // self.params.batch_size))
 
-            lr_lambda = lambda step: max(
-                (decay_rate ** (step / decay_steps)), 
-                min_lr / self.params.lr 
-            )
-            
-            scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
-            return {
-                "scheduler": scheduler, 
-                "interval": "step"
-            }
+                lr_lambda = lambda step: max(
+                    (decay_rate ** (step / decay_steps)), 
+                    min_lr / self.params.lr 
+                )
+                
+                scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+                return {
+                    "scheduler": scheduler, 
+                    "interval": "step"
+                }
+            case 'multi_step':
+                scheduler = torch.optim.lr_scheduler.MultiStepLR(
+                    optimizer, 
+                    **self.params.scheduler_kwargs
+                )
+                return {
+                    "scheduler": scheduler,
+                    "interval": "epoch",
+                }
             
         return None

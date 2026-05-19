@@ -2,6 +2,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict, Any
 import optuna
 
+from src import config
 from src.utils import helpers
 
 @dataclass
@@ -10,6 +11,7 @@ class BaseParams:
     # Image & Data Augmentation
     image_size: Optional[int] = None
     crop_size: Optional[int] = None
+    label_scaler: Optional[int] = config.LABEL_SCALER
     aug_factor: Optional[float] = None
     num_ops: Optional[int] = None
 
@@ -26,9 +28,15 @@ class BaseParams:
     lr: float = 1e-3
     l2_reg: Optional[float] = None
     lr_schedule: Optional[str] = None
-    min_lr_pct: Optional[float] = None
-    # lr_patience: 
+    # min_lr_pct: Optional[float] = None
     monitor_metric: str = 'val_nae'
+    grad_accumulation: int = 1
+    scheduler_kwargs: Dict[str, Any] = field(default_factory=lambda: {
+        "mode": "min",
+        "factor": 0.2,
+        "patience": 2,
+        "min_lr": 6e-6
+    })
 
     # Decay logic (if step decay is chosen)
     decay_steps: Optional[int] = None

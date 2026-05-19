@@ -12,8 +12,8 @@ class HRNetNeck(nn.Module):
         # A simple fusion block to compress the concatenated features
         self.fusion_conv = nn.Sequential(
             nn.Conv2d(total_in_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            # nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(),
         )
 
     def forward(self, features):

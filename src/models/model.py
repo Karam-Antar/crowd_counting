@@ -25,7 +25,7 @@ class CrowdCounter(torch.nn.Module):
         # 4. Final Counting Head (Outputs a 1-Channel Density Map)
         self.head = torch.nn.Sequential(
             torch.nn.Conv2d(params.neck_out_channels, 32, kernel_size=3, padding=1),
-            torch.nn.ReLU(inplace=True),
+            torch.nn.ReLU(),
             torch.nn.Conv2d(32, 1, kernel_size=1) # 1 channel output for density estimation
         )
 

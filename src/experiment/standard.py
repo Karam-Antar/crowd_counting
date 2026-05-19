@@ -51,7 +51,7 @@ class StandardRunner(BaseExperimentRunner):
                 )
                 self.registry.upload_model(payload)
         except Exception as e:
-            # print(e)
+            print(e)
             self.tracker.end_run('failed')
             raise e
         

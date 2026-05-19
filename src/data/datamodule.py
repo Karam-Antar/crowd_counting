@@ -75,12 +75,16 @@ class CrowdDataModule(pl.LightningDataModule):
         
         # 2. Color/Stats sync: Mutate the image only
         img = self.train_image_augs(img)
+        if mask is not None:
+            mask = mask * (self.params.label_scaler or 1)
         
         return img, mask
 
     def apply_test_transforms(self, img, mask):
         img, mask = self.test_joint_augs(img, mask)
         img = self.test_image_augs(img)
+        if mask is not None:
+            mask = mask * (self.params.label_scaler or 1)
         return img, mask
 
     def setup(self, stage=None):
