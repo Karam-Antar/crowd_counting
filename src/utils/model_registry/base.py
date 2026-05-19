@@ -45,8 +45,11 @@ class BaseRegistry(ABC):
         if not params_relative_path:
             raise FileNotFoundError("No params file found in the downloaded model artifacts!")
             
-        # Let the exception raise naturally if JSON parsing fails to avoid returning None
-        return BaseParams.from_json(f'{download_dir}/{params_relative_path}')
+        try:
+            return BaseParams.from_json(f'{download_dir}/{params_relative_path}')
+        except Exception as e:
+            print(e)
+            raise e
 
     def load_model(self, model_name: str, **kwargs):
         downloaded_paths, download_dir = self.download_model(model_name, **kwargs)

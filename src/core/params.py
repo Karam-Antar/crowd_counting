@@ -27,6 +27,8 @@ class BaseParams:
     l2_reg: Optional[float] = None
     lr_schedule: Optional[str] = None
     min_lr_pct: Optional[float] = None
+    # lr_patience: 
+    monitor_metric: str = 'val_nae'
 
     # Decay logic (if step decay is chosen)
     decay_steps: Optional[int] = None

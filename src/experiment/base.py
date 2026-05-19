@@ -76,6 +76,7 @@ class BaseExperimentRunner(ABC):
             callbacks=callbacks,
             enable_progress_bar=False,
             accelerator='auto',
+            accumulate_grad_batches=16,
             # log_every_n_steps=1,
             # limit_train_batches=1,
             # limit_val_batches=1,

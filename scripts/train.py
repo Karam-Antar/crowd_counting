@@ -63,13 +63,14 @@ def main():
     # import os
     # os.environ["TORCH_LOGS"] = "+dynamic"
     experiment_name = "crowd_counting"
-    run_name = 'check3'
+    run_name = 'trial_3'
     # tune(experiment_name, 'hrnet', run_name, n_trials=2)
     params = BaseParams(
-        crop_size=256,
-        batch_size=2,
-        epochs=4,
-        lr=0.0006,
+        # crop_size=288,
+        batch_size=1,
+        epochs=10,
+        lr=0.001,
+        lr_schedule='plateau',
         # architecture=architecture,
         # trainable_backbone=False,  # Fine-tune only the head
         # backbone='resnet18',

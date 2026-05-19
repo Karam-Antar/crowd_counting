@@ -45,6 +45,6 @@ class CrowdCounter(torch.nn.Module):
         density_map = F.interpolate(density_map, size=input_size, mode='bilinear', align_corners=False)
         
         # Ensure no negative values in the density map
-        density_map = F.relu(density_map)
+        density_map = F.softplus(density_map)
         
         return density_map

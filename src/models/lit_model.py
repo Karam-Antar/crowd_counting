@@ -69,6 +69,7 @@ class BaseLitModel(pl.LightningModule):
         self.val_metrics(pred_count, gt_count)
         self.log_dict(self.val_metrics, on_step=False, on_epoch=True, prog_bar=True)
         self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log('epoch_idx', self.current_epoch, on_step=False, on_epoch=True)
     
 
     def configure_optimizers(self):
@@ -126,13 +127,13 @@ class BaseLitModel(pl.LightningModule):
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer, 
                 mode='min', 
-                factor=0.5, 
-                patience=5, 
+                factor=0.3, 
+                patience=3, 
                 min_lr=self.params.lr * (self.params.min_lr_pct or 0.01)
             )
             return {
                 "scheduler": scheduler,
-                "monitor": "val_nae", 
+                "monitor": self.params.monitor_metric, 
                 "interval": "epoch"   
             }
 
