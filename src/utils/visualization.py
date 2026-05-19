@@ -57,14 +57,28 @@ def display_original_image(input_image):
     plt.show() 
 
 
-def visualize_sample(img, density_map, gt_count, cmap='jet'):
-    # Plotting
-    fig, ax = plt.subplots(1, 2, figsize=(15, 5))
+import matplotlib.pyplot as plt
+
+def visualize_sample(img, target_map, pred_map, target_count, pred_count, cmap='jet'):
+    # Create a 1x3 grid of subplots
+    fig, ax = plt.subplots(1, 3, figsize=(18, 5))
+    
+    # 1. Original Image
     ax[0].imshow(img)
     ax[0].set_title("Original Image")
+    ax[0].axis('off')
     
-    ax[1].imshow(density_map, cmap=cmap)
-    ax[1].set_title(f"Density Map (Count: {gt_count:.2f})")
+    # 2. Ground Truth Density Map
+    ax[1].imshow(target_map, cmap=cmap)
+    ax[1].set_title(f"Ground Truth (Count: {target_count:.2f})")
+    ax[1].axis('off')
+    
+    # 3. Predicted Density Map
+    ax[2].imshow(pred_map, cmap=cmap)
+    ax[2].set_title(f"Prediction (Count: {pred_count:.2f})")
+    ax[2].axis('off')
+    
+    plt.tight_layout()
     plt.show()
 
 

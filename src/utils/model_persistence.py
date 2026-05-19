@@ -12,9 +12,9 @@ from src.core.params import BaseParams
 def prepare_model_to_export(params, model):
     image_size = int(params.image_size) if params.image_size else 256
     example_input = torch.randn(4, 3, image_size, image_size)
-    batch = Dim("batch")
-    height = Dim('height')
-    width = Dim('width')
+    batch = Dim("batch", min=1, max=32)
+    height = Dim("height", min=1, max=96) 
+    width = Dim("width", min=1, max=96)
     model.eval()
     dynamic_shapes = {
             "x": {
@@ -55,7 +55,7 @@ def save_model(model: pl.LightningModule, params: BaseParams, architecture: str 
     save(exported_model, model_path)
 
     print(f"Model saved in export format to {model_path}")
-    return exported_model
+    return exported_model, model_path
 
 
 def load_model(model_path: str, device: str = config.device):

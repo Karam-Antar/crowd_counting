@@ -2,6 +2,7 @@ from typing import Optional
 from lightning.pytorch.loggers import Logger, MLFlowLogger
 import mlflow
 
+from src.core.params import BaseParams
 from src.utils.experiment_trackers.base import BaseTracker
 
 
@@ -28,6 +29,10 @@ class MLFlowTracker(BaseTracker):
         mlflow.set_experiment(self.experiment)
         if self.base_run:
             self.base_run_id = mlflow.start_run(run_name=self.base_run, run_id=self._get_existing_run_id(self.base_run)).info.run_id
+    
+
+    def log_init(self, params: dict):
+        pass
 
     def log_results(self, metrics: dict, params: dict):
         self.logger.log_metrics(metrics)

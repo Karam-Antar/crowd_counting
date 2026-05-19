@@ -7,32 +7,41 @@ from src.utils import helpers
 @dataclass
 class BaseParams:
     """Base parameter class."""
+    # Image & Data Augmentation
     image_size: Optional[int] = None
     crop_size: Optional[int] = None
-    backbone: Optional[str] = None
-    model_class: str = 'CrowdCounter'
-    batch_size: int = 16
-    epochs: int = 15
     aug_factor: Optional[float] = None
-    padding_multiple: int = 32
     num_ops: Optional[int] = None
-    train_size: Optional[int] = None
-    l2_reg: Optional[float] = None
+
+    # Architecture tweaks
+    backbone: str = 'hrnet_w18'
     trainable_backbone: bool = False
     neck_out_channels: int = 64
-    backbone: str = 'hrnet_w18'
-    unfrozen_blocks: Optional[tuple] = None
     dropout: Optional[float] = 0.25
-    
-    lr: float = 1e-3
-    lr_schedule: Optional[str] = None
 
+    # Training hardware/flow limits
+    batch_size: int = 16
+
+    # Optimization & Regularization
+    lr: float = 1e-3
+    l2_reg: Optional[float] = None
+    lr_schedule: Optional[str] = None
+    min_lr_pct: Optional[float] = None
+
+    # Decay logic (if step decay is chosen)
     decay_steps: Optional[int] = None
     decay_rate: Optional[float] = None
+    suggested_params: bool = False
+
+    # Properties not present in the suggest method (placed last)
+    model_class: str = 'CrowdCounter'
+    epochs: int = 15
+    padding_multiple: int = 32
+    train_size: Optional[int] = None
+    unfrozen_blocks: Optional[tuple] = None
     optimizer_config: Dict = field(default_factory=dict)
     extra: Dict = field(default_factory=dict)
-    suggested_params: bool = False
-    min_lr_pct: Optional[float] = None
+
     @classmethod
     def suggest(cls, trial: optuna.Trial) -> "BaseParams":
         return cls(

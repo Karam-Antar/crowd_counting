@@ -7,18 +7,19 @@ import torchmetrics
 from torchmetrics import MetricCollection, MeanAbsoluteError, MeanSquaredError
 from typing import Union, Dict, Optional, Tuple
 from src import config
+from src.core import inference
 
 class ExportedModel:
     """
     A production wrapper for torch.ExportedProgram tailored for Crowd Counting.
     Handles high-level evaluation and single-input inference.
     """
-    def __init__(self, exported_program: ExportedProgram, device: str = config.device, metrics: Optional[MetricCollection] = None):
-        self.exported_program = exported_program
+    def __init__(self, exported_program, device: str = config.device, metrics: Optional[MetricCollection] = None):
+        # self.exported_program = exported_program
         self.device = torch.device(device)
         
         # Extract the optimized callable module from the exported program
-        self.model = self.exported_program.module().to(self.device)
+        self.model = exported_program.to(self.device)
         
         if metrics is None:
             # Standard Crowd Counting metrics
@@ -37,21 +38,7 @@ class ExportedModel:
             - total_count (float): The estimated number of people in the image.
             - density_map (torch.Tensor): The 2D spatial distribution of the crowd.
         """
-        x = x.to(self.device)
-        
-        # Add batch dimension if it's a single image: [C, H, W] -> [1, C, H, W]
-        if x.dim() == 3:
-            x = x.unsqueeze(0)
-            
-        density_map = self.model(x)
-        
-        # Ensure no negative predictions (same as your CrowdCounter head logic)
-        density_map = F.relu(density_map) 
-        
-        # The total count is the integral (sum) of the density map
-        total_count = density_map.sum().item()
-        
-        return total_count, density_map.squeeze(0) # Remove batch dim for return
+        return inference.predict(self.model, x)
     
     @torch.no_grad()
     def __call__(self, x: torch.Tensor):
@@ -76,7 +63,7 @@ class ExportedModel:
             
             # 1. Forward pass
             pred_density = self.model(batch_x)
-            pred_density = F.relu(pred_density)
+            # pred_density = F.relu(pred_density)
             
             # 2. Calculate the counts by summing across spatial and channel dimensions
             # Assuming shape is [Batch, Channel, Height, Width]

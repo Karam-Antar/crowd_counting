@@ -65,14 +65,14 @@ class BaseExperimentRunner(ABC):
         self.datamodule = CrowdDataModule(params=self.params)
         self.datamodule.setup('fit')
         lit_model = self._build_model()
-        pl_logger = self.tracker.get_logger()
-        # pl_logger.log_hyperparams(self.params.to_dict(flatten=True, to_str=True))
+        logger = self.tracker.get_logger()
+        self.tracker.log_init(self.params)
 
         callbacks = self._get_default_callbacks()
 
         trainer = pl.Trainer(
             max_epochs=self.params.epochs,
-            logger=pl_logger,
+            logger=logger,
             callbacks=callbacks,
             enable_progress_bar=False,
             accelerator='auto',

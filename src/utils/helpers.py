@@ -206,9 +206,16 @@ def check_experiment_existence(name: str, queue: multiprocessing.Queue):
 
 
 def get_sample_from_dm(datamodule, index=0):
-    sample_image, _ = datamodule.val_ds[index]
+    # Capture both the image and the target (density map) from the dataset
+    sample_image, target = datamodule.val_ds[index]
+    
+    # Add batch dimension to the image
     sample_image = sample_image.unsqueeze(0)
-    return sample_image
+    
+    # Calculate the ground truth count by summing the density map tensor
+    gt_count = target.sum().item()
+    
+    return sample_image, target, gt_count
 
 def get_sample_from_ds(img_path=None, h5_path=None, index=0):
     # Load Image

@@ -1,6 +1,7 @@
 from lightning.pytorch.loggers import Logger, LitLogger
 import litlogger
 
+from src.core.params import BaseParams
 from src.utils.experiment_trackers.base import BaseTracker
 
 
@@ -20,6 +21,9 @@ class LitTracker(BaseTracker):
     def start_run(self):
         # LitLogger handles runs dynamically via init(), no strict pre-start needed
         pass
+
+    def log_init(self, params: dict):
+        self.logger.log_hyperparams(params)
 
     def log_results(self, metrics: dict, params: dict):
         # litlogger.init needs to be called after training to log final dicts

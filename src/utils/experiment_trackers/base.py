@@ -27,6 +27,10 @@ class BaseTracker(ABC):
         pass
 
     @abstractmethod
+    def log_init(self, params: dict):
+        pass
+
+    @abstractmethod
     def log_results(self, metrics: dict, params: dict):
         """Logs the final evaluated metrics and hyperparameters."""
         pass

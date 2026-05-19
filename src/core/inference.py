@@ -1,6 +1,6 @@
 import torch
 from src import config
-
+import torch.nn.functional as F
 
 @torch.no_grad()
 def predict(model, x: torch.Tensor, device=config.device):
@@ -11,20 +11,19 @@ def predict(model, x: torch.Tensor, device=config.device):
         Custom inference method for single inputs.
         """
         # 1. Handle dimensionality (C, H, W) -> (1, C, H, W)
-        if isinstance(model, torch.nn.Module):
+        if not isinstance(model, torch.fx.GraphModule):
             model.eval()
-        if x.ndimension() == 3:
-            x = x.unsqueeze(0)
-
-        # 2. Prepare input and run inference
         x = x.to(device)
-        logits = model(x)
+
+        if x.dim() == 3:
+            x = x.unsqueeze(0)
+            
+        density_map = model(x)
         
-        # 3. Process outputs
-        probs = torch.softmax(logits, dim=1)
-        conf, pred = torch.max(probs, dim=1)
+        # Ensure no negative predictions (same as your CrowdCounter head logic)
+        density_map = F.relu(density_map) 
         
-        class_idx = int(pred.item())
-        class_name = config.CLASS_NAMES[class_idx]
+        # The total count is the integral (sum) of the density map
+        total_count = density_map.sum().item()
         
-        return class_name, class_idx, conf.item()
+        return total_count, density_map.squeeze(0).numpy()
