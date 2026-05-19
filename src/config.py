@@ -5,7 +5,7 @@ import torch
 
 SEED = 42
 # CLASS_NAMES = ["daisy", "dandelion", "roses", "sunflowers", "tulips"]
-MODEL_SAVE_PATH = "./models"
+MODEL_SAVE_PATH = "/teamspace/studios/this_studio/workspace/crowd_counting/trained_models"
 LOG_DIR = "./logs"
 MLFLOW_DB_URL = os.getenv('MLFLOW_DB_URL', None)
 TORCH_HOME = os.getenv('TORCH_HOME')

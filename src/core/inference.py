@@ -26,4 +26,4 @@ def predict(model, x: torch.Tensor, device=config.device):
         # The total count is the integral (sum) of the density map
         total_count = density_map.sum().item()
         
-        return total_count, density_map.squeeze(0).numpy()
+        return total_count, density_map.squeeze(0)

@@ -89,7 +89,7 @@ class CrowdDataModule(pl.LightningDataModule):
         # print('train_size:', self.params.train_size)
         # We create separate dataset objects for train and val to use different transforms
         if stage == "fit" or stage is None:
-            if self.params.train_size:
+            if getattr(self, 'train_ds', None):
                 return 
             full_train_ds = ShanghaiTechDataset(
                 img_dir=os.path.join(train_path, "images"),
@@ -111,6 +111,8 @@ class CrowdDataModule(pl.LightningDataModule):
             self.train_eval_ds = DatasetTransformWrapper(train_subset, self.apply_test_transforms)
 
         if stage == "test" or stage is None:
+            if getattr(self, 'test_ds', None):
+                return 
             self.test_ds = ShanghaiTechDataset(
                 img_dir=os.path.join(test_path, "images"),
                 h5_dir=os.path.join(test_path, "ground-truth-h5"),

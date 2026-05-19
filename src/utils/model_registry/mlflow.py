@@ -47,20 +47,24 @@ class MLFlowRegistry(BaseRegistry):
                 
                 mlflow.log_artifacts(local_dir=str(artifacts_path), artifact_path=payload.tracker.model_name)
 
-    def download_model(self, model_name: str, version: str = "latest") -> tuple[list[str], str]:
+    def download_model(self, model_name: str, version: str = "latest", run_id: str | None = None) -> tuple[list[str], str]:
         import os
         
         safe_name = model_name.replace("/", "_")
-        download_dir = f"{config.MODEL_SAVE_PATH}/{safe_name}"
+        download_dir = f"{config.MODEL_SAVE_PATH}/{safe_name}:{version}"
         
         model_uri = f"models:/{model_name}/{version}"
+        run_uri = f'runs:/{run_id}/' if run_id else None
         
         try:
             local_path = mlflow.artifacts.download_artifacts(artifact_uri=model_uri, dst_path=download_dir)
         except Exception as e:
-            print(f"Failed to pull from registry via {model_uri}. Attempting direct artifact pull...")
-            local_path = mlflow.artifacts.download_artifacts(artifact_uri=model_name, dst_path=download_dir)
-        
+            print(f"Failed to pull from registry via {model_uri}")
+        if run_uri:
+            try:
+                mlflow.artifacts.download_artifacts(artifact_uri=run_uri, dst_path=download_dir)
+            except Exception as e:
+                print(f"Failed to pull from run via {run_uri}")
         downloaded_paths = []
         for root, _, files in os.walk(local_path):
             for file in files:

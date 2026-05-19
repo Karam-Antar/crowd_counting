@@ -57,12 +57,13 @@ def display_original_image(input_image):
     plt.show() 
 
 
-import matplotlib.pyplot as plt
 
 def visualize_sample(img, target_map, pred_map, target_count, pred_count, cmap='jet'):
     # Create a 1x3 grid of subplots
     fig, ax = plt.subplots(1, 3, figsize=(18, 5))
-    
+    img = _prepare_image_for_display(img)
+    target_map = _prepare_image_for_display(target_map)
+    pred_map = _prepare_image_for_display(pred_map)
     # 1. Original Image
     ax[0].imshow(img)
     ax[0].set_title("Original Image")

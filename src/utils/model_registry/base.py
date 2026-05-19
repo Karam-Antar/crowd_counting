@@ -26,7 +26,7 @@ class BaseRegistry(ABC):
         pass
 
     @abstractmethod
-    def download_model(self, model_name: str) -> tuple[list[str], str]:
+    def download_model(self, model_name: str, **kwargs) -> tuple[list[str], str]:
         """Downloads the model directory and returns (list_of_relative_paths, local_download_dir)."""
         pass
 
@@ -41,15 +41,15 @@ class BaseRegistry(ABC):
         return model_cls.load_from_checkpoint(f'{download_dir}/{ckpt_relative_path}', weights_only=False)
 
     def load_params(self, downloaded_paths: list[str], download_dir: str):
-        params_relative_path = next((p for p in downloaded_paths if p.casefold().endswith('.json')), None)
+        params_relative_path = next((p for p in downloaded_paths if p.casefold().endswith('model_config.json')), None)
         if not params_relative_path:
-            raise FileNotFoundError("No .json file found in the downloaded model artifacts!")
+            raise FileNotFoundError("No params file found in the downloaded model artifacts!")
             
         # Let the exception raise naturally if JSON parsing fails to avoid returning None
         return BaseParams.from_json(f'{download_dir}/{params_relative_path}')
 
-    def load_model(self, model_name: str, version: str = 'latest'):
-        downloaded_paths, download_dir = self.download_model(model_name)
+    def load_model(self, model_name: str, **kwargs):
+        downloaded_paths, download_dir = self.download_model(model_name, **kwargs)
         model_relative_path = next((p for p in downloaded_paths if p.casefold().endswith('.pt2')), None)
         if not model_relative_path:
             raise FileNotFoundError("No .pt2 file found in the downloaded model artifacts!")

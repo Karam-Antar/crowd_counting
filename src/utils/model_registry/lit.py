@@ -20,7 +20,7 @@ class LitRegistry(BaseRegistry):
             model_info = litmodels.upload_model_files(name=model_url, path=artifacts_path)
             lit_exp.log_metadata({'model_registry': f'{model_url}:{model_info.version}'})
 
-    def download_model(self, model_name: str) -> tuple[list[str], str]:
+    def download_model(self, model_name: str, **kwargs) -> tuple[list[str], str]:
         model_suffix = model_name.rsplit('/', 1)[-1]
         download_dir = f"{config.MODEL_SAVE_PATH}/{model_suffix}"
         downloaded_paths = litmodels.download_model(model_name, download_dir=download_dir)

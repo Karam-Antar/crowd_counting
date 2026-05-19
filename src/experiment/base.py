@@ -76,9 +76,9 @@ class BaseExperimentRunner(ABC):
             callbacks=callbacks,
             enable_progress_bar=False,
             accelerator='auto',
-            log_every_n_steps=1,
-            limit_train_batches=1,
-            limit_val_batches=1,
+            # log_every_n_steps=1,
+            # limit_train_batches=1,
+            # limit_val_batches=1,
         )
 
         trainer.fit(lit_model, datamodule=self.datamodule)

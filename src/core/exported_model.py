@@ -1,4 +1,5 @@
 import torch
+from torch.fx import GraphModule
 import torch.nn.functional as F
 from torch.export import ExportedProgram
 from torch.utils.data import DataLoader
@@ -14,12 +15,12 @@ class ExportedModel:
     A production wrapper for torch.ExportedProgram tailored for Crowd Counting.
     Handles high-level evaluation and single-input inference.
     """
-    def __init__(self, exported_program, device: str = config.device, metrics: Optional[MetricCollection] = None):
-        # self.exported_program = exported_program
+    def __init__(self, exported_program: ExportedProgram | GraphModule, device: str = config.device, metrics: Optional[MetricCollection] = None):
+        self.exported_program = exported_program if isinstance(exported_program, ExportedProgram) else None
         self.device = torch.device(device)
         
         # Extract the optimized callable module from the exported program
-        self.model = exported_program.to(self.device)
+        self.model = (self.exported_program.module() if self.exported_program else exported_program).to(device)
         
         if metrics is None:
             # Standard Crowd Counting metrics
