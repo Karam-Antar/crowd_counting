@@ -19,7 +19,7 @@ class BaseParams:
     backbone: str = 'hrnet_w18'
     trainable_backbone: bool = False
     neck_out_channels: int = 64
-    dropout: Optional[float] = 0.25
+    dropout: Optional[float] = None
 
     # Training hardware/flow limits
     batch_size: int = 16
@@ -31,16 +31,7 @@ class BaseParams:
     # min_lr_pct: Optional[float] = None
     monitor_metric: str = 'val_nae'
     grad_accumulation: int = 1
-    scheduler_kwargs: Dict[str, Any] = field(default_factory=lambda: {
-        "mode": "min",
-        "factor": 0.2,
-        "patience": 2,
-        "min_lr": 6e-6
-    })
-
-    # Decay logic (if step decay is chosen)
-    decay_steps: Optional[int] = None
-    decay_rate: Optional[float] = None
+    scheduler_kwargs: Dict[str, Any] = field(default_factory=dict)
     suggested_params: bool = False
 
     # Properties not present in the suggest method (placed last)

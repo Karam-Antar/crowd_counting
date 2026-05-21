@@ -1,6 +1,7 @@
 from torchvision.transforms import v2
 import torch
 from torchvision.transforms.v2 import functional as F
+import random
 
 class PadToMultiple(torch.nn.Module):
     """Pads image and mask to the nearest multiple of 'multiple'."""
@@ -57,3 +58,41 @@ class CustomRandomCrop:
         mask = F.crop(mask, i, j, h, w)
         
         return img, mask
+
+
+
+class SafePhotometricRandAugment(torch.nn.Module):
+    """
+    Mimics v2.RandAugment but restricts operations strictly to pixel-level (color/lighting) 
+    transforms. This prevents geometric operations from misaligning the image and density map.
+    """
+    def __init__(self, num_ops: int = 2, magnitude: int = 9):
+        super().__init__()
+        self.num_ops = num_ops
+        self.magnitude = magnitude
+
+    def forward(self, img: torch.Tensor) -> torch.Tensor:
+        # Scale intensity linearly based on the magnitude (assuming a 0-30 scale)
+        mag_scale = self.magnitude / 30.0  
+        
+        # Pool of strictly photometric operations that preserve pixel positions
+        ops = [
+            v2.ColorJitter(
+                brightness=0.1 + 0.3 * mag_scale, 
+                contrast=0.1 + 0.3 * mag_scale, 
+                saturation=0.1 + 0.3 * mag_scale, 
+                hue=0.02 + 0.08 * mag_scale
+            ),
+            v2.RandomGrayscale(p=0.2),
+            v2.GaussianBlur(kernel_size=(3, 5), sigma=(0.1, 0.1 + 1.9 * mag_scale)),
+            v2.RandomSolarize(threshold=1.0 - 0.4 * mag_scale, p=0.2),
+            v2.RandomAdjustSharpness(sharpness_factor=1.0 + mag_scale, p=0.3),
+            v2.RandomAutocontrast(p=0.2)
+        ]
+        
+        # Dynamically stack N unique operations sequentially every batch/epoch
+        sampled_ops = random.sample(ops, min(self.num_ops, len(ops)))
+        for op in sampled_ops:
+            img = op(img)
+            
+        return img

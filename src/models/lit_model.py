@@ -47,8 +47,8 @@ class BaseLitModel(pl.LightningModule):
         
         # 4. Count-based Metrics
         # We compare the SUM of the maps (the actual person count)
-        pred_count = torch.sum(preds, dim=(1, 2, 3))
-        gt_count = torch.sum(y, dim=(1, 2, 3))
+        pred_count = torch.sum(preds, dim=(1, 2, 3)) / 1000
+        gt_count = torch.sum(y, dim=(1, 2, 3)) / 1000
         
         return loss, pred_count, gt_count
 
