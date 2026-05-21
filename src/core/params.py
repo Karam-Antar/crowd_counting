@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any
 import optuna
 
 from src import config
-from src.utils import helpers
+from src.utils import helpers, registries
 
 @dataclass
 class BaseParams:
@@ -45,7 +45,7 @@ class BaseParams:
 
     @classmethod
     def suggest(cls, trial: optuna.Trial) -> "BaseParams":
-        return cls(
+        suggested = dict(
             # Image & Data Augmentation
             image_size=trial.suggest_categorical("image_size", [512, 768, 1024]), # Adjust based on dataset
             crop_size=trial.suggest_categorical("crop_size", [128, 256, 512]),    # 256 is standard for crowd counting
@@ -74,6 +74,9 @@ class BaseParams:
             # Flag indicating this was generated via Optuna
             suggested_params=True
         )
+        unfrozen = trial.suggest_int("unfrozen", 0, 4)
+        suggested['unfrozen_blocks'] = registries.UNFROZEN[suggested['backbone']][:unfrozen]
+        return cls(**suggested)
     
     def to_dict(self, flatten=False, to_str=False, nested=True) -> Dict[str, Any]:
         params_dict = {'params': asdict(self)} if nested else asdict(self)

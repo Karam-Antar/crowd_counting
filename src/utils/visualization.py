@@ -83,61 +83,6 @@ def visualize_sample(img, target_map, pred_map, target_count, pred_count, cmap='
     plt.show()
 
 
-def plot_confusion_matrix(model, dataloader, class_names, device=config.device, normalize=False):
-    """Compute and plot a confusion matrix from a PyTorch/Lightning model and DataLoader.
-
-    Args:
-        model: Trained PyTorch or Lightning model.
-        dataloader: DataLoader yielding (images, labels).
-        class_names: List of class names.
-        device: Device to run inference on.
-        normalize: If True, shows percentages instead of counts.
-        
-    Returns:
-        Confusion matrix as numpy array.
-    """
-    y_true = []
-    y_pred = []
-
-    for images, labels in dataloader:
-        labels = labels.to(device)
-
-        # Get predictions using centralized forward pass
-        logits = forward_pass_batch(model, images, device)
-        predicted = torch.argmax(logits, dim=1)
-
-        y_pred.extend(predicted.cpu().numpy())
-        y_true.extend(labels.cpu().numpy())
-
-    y_true = np.array(y_true)
-    y_pred = np.array(y_pred)
-
-    # Compute confusion matrix
-    cm = confusion_matrix(y_true, y_pred)
-
-    # Normalize if needed
-    if normalize:
-        cm = cm.astype("float") / cm.sum(axis=1, keepdims=True)
-
-    # Plot
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(
-        cm,
-        annot=True,
-        fmt=".2f" if normalize else "d",
-        cmap="Blues",
-        xticklabels=class_names,
-        yticklabels=class_names
-    )
-
-    plt.xlabel("Predicted label")
-    plt.ylabel("True label")
-    plt.title("Confusion Matrix")
-    plt.tight_layout()
-    plt.show()
-
-    return cm
-
 
 
 def preprocess_image(input_tensor):

@@ -63,12 +63,14 @@ def main():
     # import os
     # os.environ["TORCH_LOGS"] = "+dynamic"
     experiment_name = "crowd_counting"
-    run_name = 'trial_9'
+    run_name = 'trial_11'
     # tune(experiment_name, 'hrnet', run_name, n_trials=2)
     params = BaseParams(
-        crop_size=288,
+        backbone='hrnet_w32',
+        unfrozen_blocks=('stage4', 'stage3', 'stage2'),
+        crop_size=128,
         batch_size=32,
-        aug_factor=0.1,
+        aug_factor=0.13,
         num_ops=4,
         epochs=35,
         lr=0.0006,

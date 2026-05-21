@@ -43,15 +43,16 @@ class CrowdDataModule(pl.LightningDataModule):
         self.train_joint_augs = v2.Compose([
             v2.ToImage(),                                           # Convert PIL to Tensor
             CustomRandomCrop(params.crop_size) if params.crop_size else v2.Identity(), # Applied to BOTH
+            v2.RandomHorizontalFlip(p=0.5),
             PadToMultiple(params.padding_multiple)                                       # Applied to BOTH
         ])
         
         self.train_image_augs = v2.Compose([
+            v2.ToDtype(torch.float32, scale=True),                  # Applied ONLY to Image
             SafePhotometricRandAugment(
                 num_ops=params.num_ops or 4, 
                 magnitude=int(params.aug_factor * 30)
-            ) if params.aug_factor else v2.Identity(),                                                      # Applied ONLY to Image
-            v2.ToDtype(torch.float32, scale=True),                  # Applied ONLY to Image
+            ) if params.aug_factor else v2.Identity(),
             v2.Normalize(mean=mean, std=std)                        # Applied ONLY to Image
         ])
 

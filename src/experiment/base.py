@@ -36,8 +36,11 @@ class BaseExperimentRunner(ABC):
         return self.lit_model_cls(self.params)
 
     def _evaluate_model(self, trainer: pl.Trainer, model: pl.LightningModule) -> dict:
+        original_loggers = trainer.loggers
+        trainer.loggers = []
         val_results = trainer.validate(model, datamodule=self.datamodule, verbose=False)[0]
         train_results = trainer.validate(model, dataloaders=self.datamodule.train_eval_dataloader(), verbose=False)[0]
+        trainer.loggers = original_loggers
 
         final_metrics = {}
         for metric_name, value in val_results.items():
