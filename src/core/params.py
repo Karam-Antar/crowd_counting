@@ -26,7 +26,7 @@ class BaseParams:
 
     # Optimization & Regularization
     lr: float = 1e-3
-    l2_reg: Optional[float] = None
+    l2_reg: Optional[float] = 1e-4
     lr_schedule: Optional[str] = None
     # min_lr_pct: Optional[float] = None
     monitor_metric: str = 'val_nae'
@@ -47,35 +47,34 @@ class BaseParams:
     def suggest(cls, trial: optuna.Trial) -> "BaseParams":
         suggested = dict(
             # Image & Data Augmentation
-            image_size=trial.suggest_categorical("image_size", [512, 768, 1024]), # Adjust based on dataset
+            # image_size=trial.suggest_categorical("image_size", [512, 768, 1024]), # Adjust based on dataset
             crop_size=trial.suggest_categorical("crop_size", [128, 256, 512]),    # 256 is standard for crowd counting
             aug_factor=trial.suggest_float("aug_factor", 0.0, 0.3),
             num_ops=trial.suggest_int("num_ops", 1, 4),
 
             # Architecture tweaks
             backbone=trial.suggest_categorical("backbone", ['hrnet_w18', 'hrnet_w32', 'hrnet_w48']),
-            trainable_backbone=trial.suggest_categorical("trainable_backbone", [True, False]),
+            # trainable_backbone=trial.suggest_categorical("trainable_backbone", [True, False]),
             neck_out_channels=trial.suggest_categorical("neck_out_channels", [32, 64, 128]),
             dropout=trial.suggest_float("dropout", 0.0, 0.5),
 
             # Training hardware/flow limits
-            batch_size=trial.suggest_categorical("batch_size", [1, 2, 4, 8]),     # Kept small for high-res density maps
+            batch_size=trial.suggest_categorical("batch_size", [1, 2, 4, 8, 16, 32, 64]),     # Kept small for high-res density maps
 
             # Optimization & Regularization
             lr=trial.suggest_float("lr", 1e-5, 1e-2, log=True),
             l2_reg=trial.suggest_float("l2_reg", 1e-5, 1e-2, log=True),
-            lr_schedule=trial.suggest_categorical("lr_schedule", ["cosine", "step", "reduce_on_plateau"]),
-            min_lr_pct=trial.suggest_float("min_lr_pct", 0.01, 0.1),
-            
-            # Decay logic (if step decay is chosen)
-            decay_steps=trial.suggest_categorical("decay_steps", [5, 10, 15]),
-            decay_rate=trial.suggest_float("decay_rate", 0.5, 0.9),
+            lr_schedule=trial.suggest_categorical("lr_schedule", ['clipped_exp']),
+            scheduler_kwargs={
+                'decay_rate': trial.suggest_float("decay_rate", 0.83, 0.95),
+                'min_lr_pct': trial.suggest_float("min_lr_pct", 0.01, 0.1),
+            },
 
             # Flag indicating this was generated via Optuna
             suggested_params=True
         )
         unfrozen = trial.suggest_int("unfrozen", 0, 4)
-        suggested['unfrozen_blocks'] = registries.UNFROZEN[suggested['backbone']][:unfrozen]
+        suggested['unfrozen_blocks'] = registries.UNFROZEN[suggested['backbone'].split('_')[0]][:unfrozen]
         return cls(**suggested)
     
     def to_dict(self, flatten=False, to_str=False, nested=True) -> Dict[str, Any]:

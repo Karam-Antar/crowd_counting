@@ -47,8 +47,8 @@ class BaseLitModel(pl.LightningModule):
         
         # 4. Count-based Metrics
         # We compare the SUM of the maps (the actual person count)
-        pred_count = torch.sum(preds, dim=(1, 2, 3)) / 1000
-        gt_count = torch.sum(y, dim=(1, 2, 3)) / 1000
+        pred_count = torch.sum(preds, dim=(1, 2, 3)) / self.params.label_scaler
+        gt_count = torch.sum(y, dim=(1, 2, 3)) / self.params.label_scaler
         
         return loss, pred_count, gt_count
 
@@ -79,7 +79,7 @@ class BaseLitModel(pl.LightningModule):
         # 2. Build optimizer
         optimizer = torch.optim.AdamW(
             param_groups,
-            weight_decay=self.params.l2_reg or 1e-4
+            weight_decay=self.params.l2_reg
         )
 
         # 3. Build scheduler (returns None if no scheduler is needed)

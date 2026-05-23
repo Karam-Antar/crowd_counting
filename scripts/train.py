@@ -3,6 +3,7 @@ import os
 import sys
 sys.path.append('/teamspace/studios/this_studio/workspace/crowd_counting/')
 # print(sys.path)
+from src.experiment.optuna_tuner import OptunaTuner
 from src.utils.experiment_trackers import MLFlowTracker
 from typing import Optional
 import torch
@@ -63,34 +64,30 @@ def main():
     # import os
     # os.environ["TORCH_LOGS"] = "+dynamic"
     experiment_name = "crowd_counting"
-    run_name = 'trial_11'
+    run_name = 'trial_13'
     # tune(experiment_name, 'hrnet', run_name, n_trials=2)
     params = BaseParams(
         backbone='hrnet_w32',
-        unfrozen_blocks=('stage4', 'stage3', 'stage2'),
-        crop_size=128,
+        # unfrozen_blocks=('stage4',),
+        crop_size=288,
         batch_size=32,
-        aug_factor=0.13,
+        neck_out_channels=64,
+        aug_factor=0.12,
         num_ops=4,
-        epochs=35,
+        epochs=55,
+        # l2_reg=0.0009,
         lr=0.0006,
         lr_schedule='clipped_exp',
         # grad_accumulation=16,
         scheduler_kwargs={
-            'decay_rate': 0.925,
+            'decay_rate': 0.94,
             'min_lr_pct': 0.01,
         },
-        # architecture=architecture,
-        # trainable_backbone=False,  # Fine-tune only the head
-        # backbone='resnet18',
-        # dropout=0.25,
-        # aug_factor=0.2,
-        # num_ops=4,
-        # l2_reg=0.0009,
     )
     architecture = helpers.to_snake_case(params.backbone if params.backbone else params.model_class)
     StandardRunner(CrowdCounter, MLFlowTracker(experiment_name, [architecture, run_name]), params=params).run()
-    # single_run(experiment_name, architecture, run_name,params=params)
+    # study_name = 'check1'
+    # OptunaTuner(experiment_name,  CrowdCounter, study_name, n_trials=2).run()
 
 if __name__ == '__main__':
     main()

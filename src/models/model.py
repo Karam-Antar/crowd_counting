@@ -1,5 +1,6 @@
 import torch
 from src.models.submodules.backbones import HRNetBackbone
+from src.models.submodules.coord_att import CoordAtt
 from src.models.submodules.necks import HRNetNeck
 import torch.nn.functional as F
 
@@ -21,6 +22,8 @@ class CrowdCounter(torch.nn.Module):
         
         # 3. Initialize Neck
         self.neck = HRNetNeck(in_channels_list=in_channels_list, out_channels=params.neck_out_channels)
+        with torch.random.fork_rng():
+            self.attention = CoordAtt(params.neck_out_channels)
         
         # 4. Final Counting Head (Outputs a 1-Channel Density Map)
         self.head = torch.nn.Sequential(
@@ -28,6 +31,13 @@ class CrowdCounter(torch.nn.Module):
             torch.nn.ReLU(),
             torch.nn.Conv2d(32, 1, kernel_size=1) # 1 channel output for density estimation
         )
+
+        # self.head = torch.nn.Sequential(
+        #     torch.nn.ConvTranspose2d(params.neck_out_channels, 32, kernel_size=4, stride=2, padding=1),
+        #     torch.nn.ReLU(),
+        #     torch.nn.Conv2d(32, 1, kernel_size=1),
+        #     torch.nn.ReLU(),
+        # )
 
     def forward(self, x):
         input_size = x.shape[2:] # Save the original image size (H, W)
@@ -37,7 +47,7 @@ class CrowdCounter(torch.nn.Module):
         
         # Fuse features in the neck
         fused = self.neck(features)
-        
+        fused = self.attention(fused)
         # Predict the density map (currently at 1/4 resolution due to HRNet's f1)
         density_map = self.head(fused)
         
