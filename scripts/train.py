@@ -64,17 +64,16 @@ def main():
     # import os
     # os.environ["TORCH_LOGS"] = "+dynamic"
     experiment_name = "crowd_counting"
-    run_name = 'trial_13'
+    run_name = None
     # tune(experiment_name, 'hrnet', run_name, n_trials=2)
     params = BaseParams(
-        backbone='hrnet_w32',
+        backbone='efficientnet-b0',
         # unfrozen_blocks=('stage4',),
         crop_size=288,
-        batch_size=32,
-        neck_out_channels=64,
+        batch_size=2,
         aug_factor=0.12,
         num_ops=4,
-        epochs=55,
+        epochs=1,
         # l2_reg=0.0009,
         lr=0.0006,
         lr_schedule='clipped_exp',
@@ -84,8 +83,8 @@ def main():
             'min_lr_pct': 0.01,
         },
     )
-    architecture = helpers.to_snake_case(params.backbone if params.backbone else params.model_class)
-    StandardRunner(CrowdCounter, MLFlowTracker(experiment_name, [architecture, run_name]), params=params).run()
+    # architecture = helpers.to_snake_case(params.backbone if params.backbone else params.model_class)
+    StandardRunner(CrowdCounter, MLFlowTracker(experiment_name, run_name), params=params).run()
     # study_name = 'check1'
     # OptunaTuner(experiment_name,  CrowdCounter, study_name, n_trials=2).run()
 

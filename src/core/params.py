@@ -18,7 +18,7 @@ class BaseParams:
     # Architecture tweaks
     backbone: str = 'hrnet_w18'
     trainable_backbone: bool = False
-    neck_out_channels: int = 64
+    neck_out_channels: Optional[int] = None
     dropout: Optional[float] = None
 
     # Training hardware/flow limits

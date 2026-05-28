@@ -20,7 +20,7 @@ class MLFlowTracker(BaseTracker):
 
     def get_logger(self) -> Logger:
         run_tags = {}
-        if self.base_run_id:
+        if self.base_run:
             run_tags["mlflow.parentRunId"] = self.base_run_id
         self.logger = MLFlowLogger(experiment_name=self.experiment, run_name=self.logger_name, tags=run_tags, synchronous=False)
         return self.logger
