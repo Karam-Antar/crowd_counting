@@ -69,17 +69,17 @@ def main():
     params = BaseParams(
         backbone='efficientnet-b0',
         # unfrozen_blocks=('stage4',),
-        crop_size=288,
-        batch_size=2,
+        crop_size=384,
+        batch_size=16,
         aug_factor=0.12,
         num_ops=4,
-        epochs=1,
+        epochs=60,
         # l2_reg=0.0009,
-        lr=0.0006,
+        lr=0.00065,
         lr_schedule='clipped_exp',
         # grad_accumulation=16,
         scheduler_kwargs={
-            'decay_rate': 0.94,
+            'decay_rate': 0.96,
             'min_lr_pct': 0.01,
         },
     )

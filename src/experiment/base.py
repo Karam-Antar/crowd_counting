@@ -82,10 +82,10 @@ class BaseExperimentRunner(ABC):
             accelerator='auto',
             accumulate_grad_batches=self.params.grad_accumulation,
             precision="bf16-mixed",
-            # gradient_clip_val=1.0,
+            gradient_clip_val=1.0,
             # log_every_n_steps=1,
-            limit_train_batches=1,
-            limit_val_batches=1,
+            # limit_train_batches=1,
+            # limit_val_batches=1,
         )
 
         trainer.fit(lit_model, datamodule=self.datamodule)
@@ -99,7 +99,7 @@ class BaseExperimentRunner(ABC):
         self.tracker.log_results(metrics, self.params.to_dict(flatten=True, to_str=True))
 
         return lit_model, best_path, metrics
-    
+
     @abstractmethod
     def run(self):
         pass

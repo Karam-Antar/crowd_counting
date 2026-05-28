@@ -74,3 +74,35 @@ def prepare_temp_dir(artifacts_path: Path, payload: ModelPayload, experiment_nam
             shutil.copytree(source_path, destination, dirs_exist_ok=True) 
         else:
             shutil.copy(source_path, destination)
+
+
+
+def is_metric_better_than_history(experiment_name: str, current_run_id: str, current_value: float, metric_name: str = "best_val_nae", mode: str = "min") -> bool:
+        from mlflow.tracking import MlflowClient
+        client = MlflowClient()
+        experiment = client.get_experiment_by_name(experiment_name)
+        
+        if not experiment:
+            return True
+        
+        # filter_query = f"metrics.{metric_name} >= 0 AND attributes.run_id != '{current_run_id}'"
+
+        order_direction = "ASC" if mode == "min" else "DESC"
+        best_runs = client.search_runs(
+            experiment_ids=[experiment.experiment_id],
+            filter_string=f"metrics.{metric_name} >= 0", # Ensure the metric was actually logged
+            order_by=[f"metrics.{metric_name} {order_direction}"],
+            max_results=1
+        )
+        
+        if not best_runs or metric_name not in best_runs[0].data.metrics:
+            return True
+            
+        best_historical_value = best_runs[0].data.metrics[metric_name]
+        
+        print(f"Comparing Current: {current_value:.4f} vs Historical Best: {best_historical_value:.4f}")
+        
+        if mode == "min":
+            return current_value <= best_historical_value
+        else:
+            return current_value >= best_historical_value

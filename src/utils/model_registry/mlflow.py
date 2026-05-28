@@ -7,7 +7,8 @@ from unittest.mock import patch
 from src import config
 from src.utils.model_persistence import prepare_model_to_export, save_model
 from src.utils.model_registry.base import BaseRegistry
-from src.utils.model_registry.utils import ModelPayload, prepare_temp_dir
+from src.utils.model_registry.utils import ModelPayload, is_metric_better_than_history, prepare_temp_dir
+
 
 class MLFlowRegistry(BaseRegistry):
 
@@ -32,6 +33,9 @@ class MLFlowRegistry(BaseRegistry):
 
 
     def upload_model(self, payload: ModelPayload):
+        if not is_metric_better_than_history(payload.tracker.experiment, payload.tracker.logger.run_id, payload.metrics.get('best_val_nae', 1)):
+            print(f"Model did not outperform historical best. Skipping upload to registry.")
+            return
         with mlflow.start_run(run_id=payload.tracker.logger.run_id, nested=True):
             
             model_info = self.log_model(payload)  
