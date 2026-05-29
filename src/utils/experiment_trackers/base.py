@@ -13,8 +13,15 @@ class BaseTracker(ABC):
         self.nested = isinstance(run_name, list)
         if self.nested:
             run_name = [e if e else str(timestamp()) for e in run_name]
-        # self.model_name = 'model'
-        # self.full_experiment_name = 'experiment'
+        self.logger: Logger | None = None
+    
+    @property
+    def model_name(self):
+        return 'model'
+    
+    @property
+    def full_experiment_name(self):
+        return 'experiment'
     
     @abstractmethod
     def get_logger(self) -> Logger:

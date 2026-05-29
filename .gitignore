@@ -22,3 +22,5 @@ __pycache__/
 *.ckpt
 *.h5
 *.db
+*.pdf
+*.png

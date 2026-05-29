@@ -33,6 +33,16 @@ class ModelPayload:
 
 # --- Shared Preparation Logic (Backend Agnostic) ---
 
+
+def zip_code(artifacts_path: Path):
+    code_path = artifacts_path / "code.tar.gz"
+    code_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.run(f"git ls-files --cached --others --exclude-standard | tar -czvf '{code_path.as_posix()}' -T -", shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to create zip: {e}")
+
+
 def add_metadata(artifacts_path: Path, params: BaseParams, experiment_name: str, metrics: dict, empty_files=False):
     config_file_path = artifacts_path / "model_config.json"
     best_metrics = {k: v for k, v in metrics.items() if str(k).casefold().startswith('best')}
@@ -59,12 +69,7 @@ def prepare_temp_dir(artifacts_path: Path, payload: ModelPayload, experiment_nam
         
     # 4. Handle Code Artifacts (Zip Git or copy specific files)
     if payload.code_artifacts is None:
-        code_path = Path(f'{artifacts_path}/code.tar.gz')
-        code_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            subprocess.run(f"git ls-files --cached --others --exclude-standard | tar -czvf '{code_path.as_posix()}' -T -", shell=True, check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to create zip: {e}")
+        zip_code(artifacts_path)
         return
         
     for artifact_name, source_path in payload.code_artifacts.items():
@@ -77,20 +82,20 @@ def prepare_temp_dir(artifacts_path: Path, payload: ModelPayload, experiment_nam
 
 
 
-def is_metric_better_than_history(experiment_name: str, current_run_id: str, current_value: float, metric_name: str = "best_val_nae", mode: str = "min") -> bool:
+def is_metric_better_than_history(payload: ModelPayload, metric_name: str = "best_val_nae", mode: str = "min") -> bool:
         from mlflow.tracking import MlflowClient
         client = MlflowClient()
-        experiment = client.get_experiment_by_name(experiment_name)
+        experiment = client.get_experiment_by_name(payload.tracker.experiment)
         
         if not experiment:
             return True
         
-        # filter_query = f"metrics.{metric_name} >= 0 AND attributes.run_id != '{current_run_id}'"
+        filter_query = f"metrics.{metric_name} >= 0 AND attributes.run_id != '{payload.tracker.logger.run_id}'"
 
         order_direction = "ASC" if mode == "min" else "DESC"
         best_runs = client.search_runs(
             experiment_ids=[experiment.experiment_id],
-            filter_string=f"metrics.{metric_name} >= 0", # Ensure the metric was actually logged
+            filter_string=filter_query, # Ensure the metric was actually logged
             order_by=[f"metrics.{metric_name} {order_direction}"],
             max_results=1
         )
@@ -99,10 +104,10 @@ def is_metric_better_than_history(experiment_name: str, current_run_id: str, cur
             return True
             
         best_historical_value = best_runs[0].data.metrics[metric_name]
-        
+        current_value: float = payload.metrics.get(metric_name, 1)
         print(f"Comparing Current: {current_value:.4f} vs Historical Best: {best_historical_value:.4f}")
         
         if mode == "min":
-            return current_value <= best_historical_value
+            return current_value < best_historical_value
         else:
-            return current_value >= best_historical_value
+            return current_value > best_historical_value
