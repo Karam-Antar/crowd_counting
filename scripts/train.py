@@ -69,9 +69,9 @@ def main():
     params = BaseParams(
         backbone='efficientnet-b0',
         # unfrozen_blocks=('stage4',),
-        crop_size=384,
+        crop_size=320,
         batch_size=16,
-        aug_factor=0.12,
+        aug_factor=0.18,
         num_ops=4,
         epochs=60,
         # l2_reg=0.0009,

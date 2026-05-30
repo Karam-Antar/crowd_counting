@@ -12,6 +12,7 @@ from src.core.params import BaseParams
 from src.core.callbacks import ReseedCallback
 from src.utils.experiment_trackers import BaseTracker
 from src.utils.model_registry import BaseRegistry
+from src.utils.model_registry.utils import ModelPayload
 
 
 class BaseExperimentRunner(ABC):
@@ -97,8 +98,16 @@ class BaseExperimentRunner(ABC):
         metrics = self._evaluate_model(trainer, lit_model)
 
         self.tracker.log_results(metrics, self.params.to_dict(flatten=True, to_str=True))
-
-        return lit_model, best_path, metrics
+        payload = ModelPayload(
+            model=lit_model,
+            tracker=self.tracker,
+            params=self.params,
+            metrics=metrics,
+            monitor_metric=self.monitor_metric,
+            monitor_mode=self.monitor_mode,
+            ckpt_path=best_path
+        )
+        return payload
 
     @abstractmethod
     def run(self):

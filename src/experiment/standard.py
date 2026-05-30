@@ -40,15 +40,9 @@ class StandardRunner(BaseExperimentRunner):
         self.tracker.start_run()
 
         try:
-            lit_model, best_path, metrics = self._run_training()
+            payload = self._run_training()
+            lit_model, best_path, metrics = payload.model, payload.ckpt_path, payload.metrics
             if self.registry:
-                payload = ModelPayload(
-                    model=lit_model,
-                    tracker=self.tracker,
-                    params=self.params,
-                    metrics=metrics,
-                    ckpt_path=best_path
-                )
                 self.registry.upload_model(payload)
         except Exception as e:
             print(e)

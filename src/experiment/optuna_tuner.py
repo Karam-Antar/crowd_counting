@@ -73,7 +73,8 @@ class OptunaTuner(BaseExperimentRunner):
             self.current_trial = trial
             
             try:
-                lit_model, best_path, metrics = self._run_training()
+                payload = self._run_training()
+                lit_model, best_path, metrics = payload.model, payload.ckpt_path, payload.metrics
             except optuna.exceptions.TrialPruned:
                 self.tracker.end_run('killed') 
                 raise
@@ -96,13 +97,7 @@ class OptunaTuner(BaseExperimentRunner):
                 trial.study.set_user_attr(f"best_{self.monitor_metric}", target_metric_value)
                 
                 # 3. Instead of uploading immediately, pack and store the current winning configuration
-                best_payload = ModelPayload(
-                    model=lit_model,
-                    tracker=self.tracker,
-                    params=self.params,
-                    metrics=metrics,
-                    ckpt_path=best_path
-                )
+                best_payload = payload
             
             self.tracker.end_run('success')
             return target_metric_value

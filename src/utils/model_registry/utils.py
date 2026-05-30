@@ -11,6 +11,8 @@ from lightning.pytorch.loggers import LitLogger
 import torch
 import urllib.parse
 
+from torch import monitor
+
 from src import config
 from src.core.params import BaseParams
 from src.utils import helpers
@@ -27,6 +29,8 @@ class ModelPayload:
     tracker: BaseTracker
     params: BaseParams
     metrics: dict
+    monitor_metric: str
+    monitor_mode: str
     ckpt_path: Optional[str] = None
     code_artifacts: Optional[dict] = None
 
@@ -82,14 +86,15 @@ def prepare_temp_dir(artifacts_path: Path, payload: ModelPayload, experiment_nam
 
 
 
-def is_metric_better_than_history(payload: ModelPayload, metric_name: str = "best_val_nae", mode: str = "min") -> bool:
+def is_metric_better_than_history(payload: ModelPayload) -> bool:
         from mlflow.tracking import MlflowClient
         client = MlflowClient()
         experiment = client.get_experiment_by_name(payload.tracker.experiment)
         
         if not experiment:
             return True
-        
+        metric_name = f"best_{payload.monitor_metric}"
+        mode = payload.monitor_mode
         filter_query = f"metrics.{metric_name} >= 0 AND attributes.run_id != '{payload.tracker.logger.run_id}'"
 
         order_direction = "ASC" if mode == "min" else "DESC"
