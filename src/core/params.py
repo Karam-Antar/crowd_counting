@@ -16,7 +16,9 @@ class BaseParams:
     num_ops: Optional[int] = None
 
     # Architecture tweaks
-    backbone: str = 'hrnet_w18'
+    backbone: str = 'efficientnet-b0'
+    model_class: str = 'Unet'
+    backbone_weights: str = 'imagenet'
     trainable_backbone: bool = False
     neck_out_channels: Optional[int] = None
     dropout: Optional[float] = None
@@ -31,11 +33,11 @@ class BaseParams:
     # min_lr_pct: Optional[float] = None
     monitor_metric: str = 'val_nae'
     grad_accumulation: int = 1
+    grad_clip: Optional[float] = None
     scheduler_kwargs: Dict[str, Any] = field(default_factory=dict)
     suggested_params: bool = False
 
     # Properties not present in the suggest method (placed last)
-    model_class: str = 'CrowdCounter'
     epochs: int = 15
     padding_multiple: int = 32
     train_size: Optional[int] = None

@@ -33,46 +33,21 @@ if torch.cuda.is_available():
 #     # datamodule.setup(stage='base')
 #     return datamodule
 
-# def single_run(experiment_name: str, architecture: str, run_name: str, model_cls: type[CrowdCounter]=CrowdCounter, params: Optional[BaseParams] = None, ckpt_path: Optional[str] = None):
-
-#     print(f"Parameters: {params}")
-#     # Create trainer
-#     trainer = Experiment(
-#         experiment_name=experiment_name,
-#         architecture=architecture,
-#         model_cls=model_cls,
-#     )
-#     # Train the model
-#     print("Starting training...")
-#     model, best_path, val_results, train_results = trainer.fit(params=params, run_name=run_name, ckpt_path=ckpt_path)
-
-#     print(f"\nTraining completed!")
-#     print(f"validation: {val_results}")
-#     print(f"training: {train_results}")
-
-# def tune(experiment_name: str, architecture: str, run_name: str, n_trials: int = 20):
-#     model_cls = CrowdCounter
-#     params_cls = BaseParams
-#     trainer = Experiment(
-#         experiment_name=experiment_name,
-#         architecture=architecture,
-#         model_cls=model_cls,
-#     )
-#     trainer.optimize(run_name, params_cls, n_trials)
 
 def main():
     # import os
     # os.environ["TORCH_LOGS"] = "+dynamic"
     experiment_name = "crowd_counting"
     run_name = None
-    # tune(experiment_name, 'hrnet', run_name, n_trials=2)
+    # study_name = 'check1'
     params = BaseParams(
-        backbone='efficientnet-b0',
+        model_class='Unet',
+        backbone='efficientnet-b2',
         # unfrozen_blocks=('stage4',),
-        crop_size=320,
+        crop_size=384,
         batch_size=16,
-        aug_factor=0.18,
-        num_ops=4,
+        # aug_factor=0.18,
+        # num_ops=4,
         epochs=60,
         # l2_reg=0.0009,
         lr=0.00065,
@@ -84,8 +59,10 @@ def main():
         },
     )
     # architecture = helpers.to_snake_case(params.backbone if params.backbone else params.model_class)
-    StandardRunner(CrowdCounter, MLFlowTracker(experiment_name, run_name), params=params).run()
-    # study_name = 'check1'
+    model, best_path, val_results, train_results = StandardRunner(CrowdCounter, MLFlowTracker(experiment_name, run_name), params=params).run()
+    print(f"\nTraining completed!")
+    print(f"validation: {val_results}")
+    print(f"training: {train_results}")
     # OptunaTuner(experiment_name,  CrowdCounter, study_name, n_trials=2).run()
 
 if __name__ == '__main__':

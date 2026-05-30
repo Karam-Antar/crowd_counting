@@ -83,7 +83,7 @@ class BaseExperimentRunner(ABC):
             accelerator='auto',
             accumulate_grad_batches=self.params.grad_accumulation,
             precision="bf16-mixed",
-            # gradient_clip_val=1.0,
+            gradient_clip_val=self.params.grad_clip,
             # log_every_n_steps=1,
             # limit_train_batches=1,
             # limit_val_batches=1,

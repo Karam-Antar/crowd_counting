@@ -6,7 +6,7 @@ from src.models.submodules.coord_att import CoordAtt
 from src.models.hrnet.neck import HRNetNeck
 import torch.nn.functional as F
 
-from src.models.unet import UNet
+from src.models.encoder_decoder import EncoderDecoder
 
 
 class CrowdCounter(torch.nn.Module):
@@ -17,7 +17,7 @@ class CrowdCounter(torch.nn.Module):
         if params.backbone.startswith('hrnet'):
             self.net = HRNet(params)
         else:
-            self.net = UNet(params)
+            self.net = EncoderDecoder(params)
 
     def forward(self, x):
         density_map = self.net(x)
