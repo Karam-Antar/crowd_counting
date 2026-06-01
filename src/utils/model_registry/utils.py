@@ -37,12 +37,40 @@ class ModelPayload:
 
 # --- Shared Preparation Logic (Backend Agnostic) ---
 
+def get_existing_code_files():
+    # 1. Get the list of files from Git
+    git_output = subprocess.check_output(
+            "git ls-files --cached --others --exclude-standard", 
+            shell=True, 
+            text=True
+        )
+        
+    # 2. Filter out files that have been deleted locally
+    existing_files = [f for f in git_output.splitlines() if Path(f).exists()]
+    return existing_files
+
 
 def zip_code(artifacts_path: Path):
     code_path = artifacts_path / "code.tar.gz"
     code_path.parent.mkdir(parents=True, exist_ok=True)
+    
     try:
-        subprocess.run(f"git ls-files --cached --others --exclude-standard | tar -czvf '{code_path.as_posix()}' -T -", shell=True, check=True)
+        existing_files = get_existing_code_files()
+        
+        if not existing_files:
+            print("⚠️ No valid files found to zip.")
+            return
+
+        # 3. Pass the filtered list to tar via standard input
+        subprocess.run(
+            f"tar -czvf '{code_path.as_posix()}' -T -", 
+            input="\n".join(existing_files),
+            shell=True, 
+            check=True,
+            text=True
+        )
+        print(f"✅ Zip created successfully at {code_path}")
+        
     except subprocess.CalledProcessError as e:
         print(f"❌ Failed to create zip: {e}")
 
