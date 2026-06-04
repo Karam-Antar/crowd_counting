@@ -12,7 +12,11 @@ MLFLOW_DB_URL = os.getenv('MLFLOW_DB_URL', None)
 TORCH_HOME = os.getenv('TORCH_HOME')
 OPTUNA_DB_URL = os.getenv('OPTUNA_DB_URL')
 DATA_HOME = os.getenv('DATA_HOME', '/teamspace/lightning_storage/datasets')
-DATASET_PATH = f'{DATA_HOME}/ShanghaiTech/part_A'
+SHANGHAI_PATH = f'{DATA_HOME}/ShanghaiTech/part_A'
+JHU_PATH = f'{DATA_HOME}/jhu-crowd-pp-v2'
+DATASET_PATH = SHANGHAI_PATH
+TRAIN_PATH = f'{DATASET_PATH}/train' if DATASET_PATH == JHU_PATH else f'{DATASET_PATH}/train_data'
+TEST_PATH = f'{DATASET_PATH}/test' if DATASET_PATH == JHU_PATH else f'{DATASET_PATH}/test_data'
 PIP_REQUIREMENTS = [
     "torch",
     "torchvision",

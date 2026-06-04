@@ -13,8 +13,8 @@ def prepare_model_to_export(params, model):
     image_size = int(params.image_size) if params.image_size else 256
     example_input = torch.randn(4, 3, image_size, image_size)
     batch = Dim("batch", min=1, max=32)
-    height = Dim("height", min=1, max=96) 
-    width = Dim("width", min=1, max=96)
+    height = Dim("height", min=1, max=256) 
+    width = Dim("width", min=1, max=256)
     model.eval()
     dynamic_shapes = {
             "x": {

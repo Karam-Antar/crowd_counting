@@ -89,28 +89,40 @@ class CrowdDataModule(pl.LightningDataModule):
         return img, mask
 
     def setup(self, stage=None):
-        train_path = os.path.join(self.data_root, "train_data")
-        test_path = os.path.join(self.data_root, "test_data")
+        train_path = config.TRAIN_PATH
+        test_path = config.TEST_PATH
         # print('train_size:', self.params.train_size)
         # We create separate dataset objects for train and val to use different transforms
         if stage == "fit" or stage is None:
             if getattr(self, 'train_ds', None):
                 return 
+            val_path = os.path.join(os.path.dirname(self.data_root), "valid")
+    
+            # 1. Always load the training set
             full_train_ds = ShanghaiTechDataset(
                 img_dir=os.path.join(train_path, "images"),
                 h5_dir=os.path.join(train_path, "ground-truth-h5")
             )
             
-            # Split indices
-            train_size = int(0.8 * len(full_train_ds))
-            val_size = len(full_train_ds) - train_size
-            train_subset, val_subset = random_split(
-                full_train_ds, [train_size, val_size], 
-                generator=torch.Generator().manual_seed(42)
-            )
-            self.params.train_size = train_size
+            # 2. Check for the existence of the 'val' folder
+            if os.path.exists(val_path):
+                # Load validation dataset from folder
+                val_subset = ShanghaiTechDataset(
+                    img_dir=os.path.join(val_path, "images"),
+                    h5_dir=os.path.join(val_path, "ground-truth-h5")
+                )
+                train_subset = full_train_ds
+            else:
+                # Perform the random split if 'val' folder does not exist
+                train_size = int(0.8 * len(full_train_ds))
+                val_size = len(full_train_ds) - train_size
+                train_subset, val_subset = random_split(
+                    full_train_ds, [train_size, val_size], 
+                    generator=torch.Generator().manual_seed(42)
+                )
+                self.params.train_size = train_size
             
-            # Use our custom apply_*_transforms methods here!
+                # 3. Apply wrappers
             self.train_ds = DatasetTransformWrapper(train_subset, self.apply_train_transforms)
             self.val_ds = DatasetTransformWrapper(val_subset, self.apply_test_transforms)
             self.train_eval_ds = DatasetTransformWrapper(train_subset, self.apply_test_transforms)
@@ -132,7 +144,7 @@ class CrowdDataModule(pl.LightningDataModule):
         return DataLoader(self.val_ds, batch_size=1, num_workers=4, pin_memory=True)
 
     def test_dataloader(self):
-        return DataLoader(self.test_ds, batch_size=1, num_workers=4)
+        return DataLoader(self.test_ds or self.val_ds, batch_size=1, num_workers=4)
     
     def train_eval_dataloader(self):
         """Used ONLY for evaluating the training set cleanly."""

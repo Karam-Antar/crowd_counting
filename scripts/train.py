@@ -48,7 +48,7 @@ def main():
         batch_size=16,
         # aug_factor=0.18,
         # num_ops=4,
-        epochs=60,
+        epochs=35,
         # l2_reg=0.0009,
         lr=0.00065,
         lr_schedule='clipped_exp',

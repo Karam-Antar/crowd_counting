@@ -5,7 +5,7 @@ from torch.export import ExportedProgram
 from torch.utils.data import DataLoader
 import lightning.pytorch as pl
 import torchmetrics
-from torchmetrics import MetricCollection, MeanAbsoluteError, MeanSquaredError
+from torchmetrics import MeanAbsolutePercentageError, MetricCollection, MeanAbsoluteError, MeanSquaredError
 from typing import Union, Dict, Optional, Tuple
 from src import config
 from src.core import inference
@@ -26,7 +26,8 @@ class ExportedModel:
             # Standard Crowd Counting metrics
             self.metrics = MetricCollection({
                 "MAE": MeanAbsoluteError(),
-                "MSE": MeanSquaredError()
+                "MSE": MeanSquaredError(),
+                'NAE': MeanAbsolutePercentageError(),
             }).to(self.device)
         else:
             self.metrics = metrics.to(self.device)
@@ -52,7 +53,7 @@ class ExportedModel:
         """
         if isinstance(data, pl.LightningDataModule):
             data.setup(stage="test")
-            loader = data.val_dataloader() or data.test_dataloader()
+            loader = data.test_dataloader() or data.val_dataloader()
         else:
             loader = data
         
@@ -63,13 +64,14 @@ class ExportedModel:
             batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
             
             # 1. Forward pass
-            pred_density = self.model(batch_x) / config.LABEL_SCALER
+            pred_density = self.model(batch_x)
             # pred_density = F.relu(pred_density)
             
             # 2. Calculate the counts by summing across spatial and channel dimensions
             # Assuming shape is [Batch, Channel, Height, Width]
-            pred_count = pred_density.sum(dim=(1, 2, 3))
-            gt_count = batch_y.sum(dim=(1, 2, 3))
+            pred_count = pred_density.sum(dim=(1, 2, 3)) / config.LABEL_SCALER
+            gt_count = batch_y.sum(dim=(1, 2, 3)) / config.LABEL_SCALER
+            print(pred_count, gt_count)
             
             # 3. MetricCollection updates all metrics simultaneously
             self.metrics.update(pred_count, gt_count)
