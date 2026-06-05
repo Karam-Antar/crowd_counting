@@ -27,7 +27,7 @@ class BaseParams:
     batch_size: int = 16
 
     # Optimization & Regularization
-    lr: float = 1e-3
+    lr: float = 0.00065
     l2_reg: Optional[float] = 1e-4
     lr_schedule: Optional[str] = None
     # min_lr_pct: Optional[float] = None
@@ -38,8 +38,9 @@ class BaseParams:
     suggested_params: bool = False
 
     # Properties not present in the suggest method (placed last)
-    epochs: int = 15
+    epochs: int = 60
     padding_multiple: int = 32
+    dataset: str = config.DATASET_PATH.split('/')[-1]
     train_size: Optional[int] = None
     unfrozen_blocks: Optional[tuple] = None
     optimizer_config: Dict = field(default_factory=dict)
@@ -50,25 +51,25 @@ class BaseParams:
         suggested = dict(
             # Image & Data Augmentation
             # image_size=trial.suggest_categorical("image_size", [512, 768, 1024]), # Adjust based on dataset
-            crop_size=trial.suggest_categorical("crop_size", [128, 256, 512]),    # 256 is standard for crowd counting
-            aug_factor=trial.suggest_float("aug_factor", 0.0, 0.3),
-            num_ops=trial.suggest_int("num_ops", 1, 4),
+            crop_size=trial.suggest_categorical("crop_size", [128, 256, 512]),
+            # aug_factor=trial.suggest_float("aug_factor", 0.0, 0.3),
+            # num_ops=trial.suggest_int("num_ops", 1, 4),
 
             # Architecture tweaks
-            backbone=trial.suggest_categorical("backbone", ['hrnet_w18', 'hrnet_w32', 'hrnet_w48']),
+            backbone=trial.suggest_categorical("backbone", ['efficientnet-b0', 'efficientnet-b1', 'efficientnet-b2', 'efficientnet-b3', 'resnet34', 'resnet50']),
             # trainable_backbone=trial.suggest_categorical("trainable_backbone", [True, False]),
-            neck_out_channels=trial.suggest_categorical("neck_out_channels", [32, 64, 128]),
-            dropout=trial.suggest_float("dropout", 0.0, 0.5),
+            # neck_out_channels=trial.suggest_categorical("neck_out_channels", [32, 64, 128]),
+            # dropout=trial.suggest_float("dropout", 0.0, 0.5),
 
             # Training hardware/flow limits
-            batch_size=trial.suggest_categorical("batch_size", [1, 2, 4, 8, 16, 32, 64]),     # Kept small for high-res density maps
+            batch_size=trial.suggest_categorical("batch_size", [2, 4, 8, 16, 32, 64]),     # Kept small for high-res density maps
 
             # Optimization & Regularization
-            lr=trial.suggest_float("lr", 1e-5, 1e-2, log=True),
-            l2_reg=trial.suggest_float("l2_reg", 1e-5, 1e-2, log=True),
-            lr_schedule=trial.suggest_categorical("lr_schedule", ['clipped_exp']),
+            # lr=trial.suggest_float("lr", 1e-5, 1e-2, log=True),
+            # l2_reg=trial.suggest_float("l2_reg", 1e-5, 1e-2, log=True),
+            # lr_schedule=trial.suggest_categorical("lr_schedule", ['clipped_exp']),
             scheduler_kwargs={
-                'decay_rate': trial.suggest_float("decay_rate", 0.83, 0.95),
+                'decay_rate': trial.suggest_float("decay_rate", 0.88, 0.97),
                 'min_lr_pct': trial.suggest_float("min_lr_pct", 0.01, 0.1),
             },
 
@@ -76,7 +77,7 @@ class BaseParams:
             suggested_params=True
         )
         unfrozen = trial.suggest_int("unfrozen", 0, 4)
-        suggested['unfrozen_blocks'] = registries.UNFROZEN[suggested['backbone'].split('_')[0]][:unfrozen]
+        suggested['unfrozen_blocks'] = registries.UNFROZEN.get(next(e for e in registries.UNFROZEN.keys() if str(e).startswith(suggested['backbone'])), [])[:unfrozen]
         return cls(**suggested)
     
     def to_dict(self, flatten=False, to_str=False, nested=True) -> Dict[str, Any]:

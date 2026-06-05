@@ -7,10 +7,13 @@ import glob
 import os
 import numpy as np
 
-class ShanghaiTechDataset(Dataset):
+class CustomDataset(Dataset):
     def __init__(self, img_dir, h5_dir, transform=None):
         self.img_paths = sorted(glob.glob(os.path.join(img_dir, "*.jpg")))
         self.h5_paths = sorted(glob.glob(os.path.join(h5_dir, "*.h5")))
+        print(len(self.img_paths), "images found in", img_dir)
+        print(len(self.h5_paths), "h5 files found in", h5_dir)
+        assert len(self.img_paths) == len(self.h5_paths), "Mismatch between images and h5 files"
         self.transform = transform
 
     def __len__(self):

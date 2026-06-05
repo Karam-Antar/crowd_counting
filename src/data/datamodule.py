@@ -7,7 +7,7 @@ import os
 
 from src import config
 from src.core.params import BaseParams
-from src.data.dataset import ShanghaiTechDataset
+from src.data.dataset import CustomDataset
 from src.data.transform import CustomRandomCrop, PadToMultiple, SafePhotometricRandAugment
 
 # Helper class to apply transforms to random_split subsets
@@ -96,18 +96,19 @@ class CrowdDataModule(pl.LightningDataModule):
         if stage == "fit" or stage is None:
             if getattr(self, 'train_ds', None):
                 return 
-            val_path = os.path.join(os.path.dirname(self.data_root), "valid")
+            val_path = os.path.join(self.data_root, "valid")
     
             # 1. Always load the training set
-            full_train_ds = ShanghaiTechDataset(
+            full_train_ds = CustomDataset(
                 img_dir=os.path.join(train_path, "images"),
                 h5_dir=os.path.join(train_path, "ground-truth-h5")
             )
             
             # 2. Check for the existence of the 'val' folder
             if os.path.exists(val_path):
+                print(val_path, "found. Loading validation set from folder.")
                 # Load validation dataset from folder
-                val_subset = ShanghaiTechDataset(
+                val_subset = CustomDataset(
                     img_dir=os.path.join(val_path, "images"),
                     h5_dir=os.path.join(val_path, "ground-truth-h5")
                 )
@@ -120,7 +121,7 @@ class CrowdDataModule(pl.LightningDataModule):
                     full_train_ds, [train_size, val_size], 
                     generator=torch.Generator().manual_seed(42)
                 )
-                self.params.train_size = train_size
+            self.params.train_size = len(train_subset)
             
                 # 3. Apply wrappers
             self.train_ds = DatasetTransformWrapper(train_subset, self.apply_train_transforms)
@@ -130,7 +131,7 @@ class CrowdDataModule(pl.LightningDataModule):
         if stage == "test" or stage is None:
             if getattr(self, 'test_ds', None):
                 return 
-            self.test_ds = ShanghaiTechDataset(
+            self.test_ds = CustomDataset(
                 img_dir=os.path.join(test_path, "images"),
                 h5_dir=os.path.join(test_path, "ground-truth-h5"),
                 transform=self.apply_test_transforms # Passes the custom function down
