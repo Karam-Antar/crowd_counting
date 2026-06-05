@@ -14,6 +14,7 @@ import lightning.pytorch as pl
 import torchlens
 from src import config
 from .helpers import forward_pass_batch
+from torchvision.transforms import v2
 from torchvision.models.feature_extraction import create_feature_extractor
 from src.utils import helpers
 import h5py
@@ -27,6 +28,8 @@ def _prepare_image_for_display(image_tensor):
     Handles channel permutation (C, H, W -> H, W, C) and converts to numpy.
     """
     # Ensure it's on CPU and convert to numpy
+    if not isinstance(image_tensor, torch.Tensor):
+        image_tensor = v2.ToImage()(image_tensor)
     img_np = image_tensor.cpu().numpy()
 
     # Handle batch dimension if present (take the first image)
@@ -58,26 +61,38 @@ def display_original_image(input_image):
 
 
 
-def visualize_sample(img, target_map, pred_map, target_count, pred_count, cmap='jet'):
+def visualize_sample(img: torch.Tensor, target: tuple | None = None, pred: tuple | None = None, cmap='jet'):
+    if target is not None:
+        target_count, target_map = target
+    if pred is not None:
+        pred_count, pred_map = pred
     # Create a 1x3 grid of subplots
-    fig, ax = plt.subplots(1, 3, figsize=(18, 5))
+    cols = 1 + (target is not None) + (pred is not None)
+    fig, ax = plt.subplots(1, cols, figsize=(18, 5))
     img = _prepare_image_for_display(img)
-    target_map = _prepare_image_for_display(target_map)
-    pred_map = _prepare_image_for_display(pred_map)
+    if target is not None:
+        target_map = _prepare_image_for_display(target_map)
+    if pred is not None:
+        pred_map = _prepare_image_for_display(pred_map)
     # 1. Original Image
-    ax[0].imshow(img)
-    ax[0].set_title("Original Image")
-    ax[0].axis('off')
+    index = 0
+    ax[index].imshow(img)
+    ax[index].set_title("Original Image")
+    ax[index].axis('off')
+    index += 1
     
+    if target is not None:
     # 2. Ground Truth Density Map
-    ax[1].imshow(target_map, cmap=cmap)
-    ax[1].set_title(f"Ground Truth (Count: {target_count:.2f})")
-    ax[1].axis('off')
+        ax[index].imshow(target_map, cmap=cmap)
+        ax[index].set_title(f"Ground Truth (Count: {target_count:.2f})")
+        ax[index].axis('off')
+        index += 1
     
     # 3. Predicted Density Map
-    ax[2].imshow(pred_map, cmap=cmap)
-    ax[2].set_title(f"Prediction (Count: {pred_count:.2f})")
-    ax[2].axis('off')
+    if pred is not None:
+        ax[index].imshow(pred_map, cmap=cmap)
+        ax[index].set_title(f"Prediction (Count: {pred_count:.2f})")
+        ax[index].axis('off')
     
     plt.tight_layout()
     plt.show()

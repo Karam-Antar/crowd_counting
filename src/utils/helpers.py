@@ -14,6 +14,7 @@ import torch.nn as nn
 import lightning.pytorch as pl
 import optuna
 from src import config
+from src.data.transform import PadToMultiple
 
 def get_study_best_value(trial: optuna.Trial):
     """Get the best validation accuracy from the study."""
@@ -220,8 +221,8 @@ def get_sample_from_dm(datamodule, index=0):
 def get_sample_from_ds(img_path=None, h5_path=None, index=0):
     # Load Image
     if not img_path:
-        img_path = glob.glob(f"{config.DATASET_PATH}/train_data/images/*.jpg")[index]
-        h5_path = img_path.replace("images", "ground-truth-h5").replace(".jpg", ".h5")
+        img_path = glob.glob(f"{config.TRAIN_PATH}/images/*.jpg")[index]
+        h5_path = img_path.replace("images", "ground-truth-h5").rsplit('_', 1)[0] + '.h5'
     img = Image.open(img_path).convert('RGB')
     
     # Load Density Map
@@ -231,3 +232,19 @@ def get_sample_from_ds(img_path=None, h5_path=None, index=0):
     # Calculate Ground Truth Count
     gt_count = np.sum(density_map)
     return img, density_map, gt_count
+
+def transform_sample(img, params):
+    import timm
+    from torchvision.transforms import v2
+    data_config = timm.data.resolve_data_config({}, model=params.backbone)
+    mean = data_config['mean']
+    std = data_config['std']
+
+    transforms = v2.Compose([
+        v2.ToImage(),
+        PadToMultiple(params.padding_multiple),
+        v2.ToDtype(torch.float32, scale=True),
+        v2.Normalize(mean=mean, std=std)
+    ])
+    img = transforms(img)
+    return img[0]
