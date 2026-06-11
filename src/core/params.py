@@ -19,6 +19,7 @@ class BaseParams:
     backbone: str = 'efficientnet-b0'
     model_class: str = 'Unet'
     backbone_weights: str = 'imagenet'
+    decoder_attention_type: Optional[str] = None
     trainable_backbone: bool = False
     neck_out_channels: Optional[int] = None
     dropout: Optional[float] = None

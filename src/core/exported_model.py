@@ -26,7 +26,7 @@ class ExportedModel:
             # Standard Crowd Counting metrics
             self.metrics = MetricCollection({
                 "MAE": MeanAbsoluteError(),
-                "MSE": MeanSquaredError(),
+                "RMSE": MeanSquaredError(squared=False),  # RMSE
                 'NAE': MeanAbsolutePercentageError(),
             }).to(self.device)
         else:

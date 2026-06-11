@@ -33,7 +33,7 @@ class MLFlowRegistry(BaseRegistry):
 
 
     def upload_model(self, payload: ModelPayload):
-        if not is_metric_better_than_history(payload):
+        if not payload.force_upload and not is_metric_better_than_history(payload):
             print(f"Model did not outperform historical best. Skipping upload to registry.")
             with mlflow.start_run(run_id=payload.tracker.logger.run_id, nested=True):
                 with tempfile.TemporaryDirectory() as tmp_dir:

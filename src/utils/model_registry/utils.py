@@ -33,6 +33,7 @@ class ModelPayload:
     monitor_mode: str
     ckpt_path: Optional[str] = None
     code_artifacts: Optional[dict] = None
+    force_upload: bool = False
 
 
 # --- Shared Preparation Logic (Backend Agnostic) ---
@@ -100,6 +101,8 @@ def prepare_temp_dir(artifacts_path: Path, payload: ModelPayload, experiment_nam
         shutil.copy(payload.ckpt_path, artifacts_path / payload.ckpt_path.split('/')[-1])
         
     # 4. Handle Code Artifacts (Zip Git or copy specific files)
+    if payload.force_upload:
+        return
     if payload.code_artifacts is None:
         zip_code(artifacts_path)
         return

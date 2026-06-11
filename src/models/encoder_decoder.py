@@ -15,6 +15,7 @@ class EncoderDecoder(nn.Module):
         self.net = smp_class(
             encoder_name=params.backbone,       # e.g., 'resnet34', 'efficientnet-b3', or 'tu-hrnet_w18'
             encoder_weights=params.backbone_weights,
+            decoder_attention_type=params.decoder_attention_type,           # Use attention in the decoder for better performance
             in_channels=3,
             classes=1,                          # Output a 1-channel density map
         )

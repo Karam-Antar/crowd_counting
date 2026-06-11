@@ -121,4 +121,4 @@ class OptunaTuner(BaseExperimentRunner):
             registry = self.registry_cls()
             registry.upload_model(best_payload)
             
-        return study
+        return best_payload, study

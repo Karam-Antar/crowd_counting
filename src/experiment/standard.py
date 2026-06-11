@@ -41,7 +41,6 @@ class StandardRunner(BaseExperimentRunner):
 
         try:
             payload = self._run_training()
-            lit_model, best_path, metrics = payload.model, payload.ckpt_path, payload.metrics
             if self.registry:
                 self.registry.upload_model(payload)
         except Exception as e:
@@ -50,8 +49,8 @@ class StandardRunner(BaseExperimentRunner):
             raise e
         
         self.tracker.end_run('success')
-            
+        metrics = payload.metrics
         val_metrics = {k: v for k,v in metrics.items() if 'val' in k}
         train_metrics = {k: v for k,v in metrics.items() if 'train' in k}
         
-        return lit_model, best_path, {"val": val_metrics}, {"train": train_metrics}
+        return payload, {"val": val_metrics}, {"train": train_metrics}

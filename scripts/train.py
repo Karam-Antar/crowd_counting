@@ -59,7 +59,7 @@ def main():
         },
     )
     # architecture = helpers.to_snake_case(params.backbone if params.backbone else params.model_class)
-    model, best_path, val_results, train_results = StandardRunner(CrowdCounter, MLFlowTracker(experiment_name, run_name), params=params).run()
+    payload, val_results, train_results = StandardRunner(CrowdCounter, MLFlowTracker(experiment_name, run_name), params=params).run()
     print(f"\nTraining completed!")
     print(f"validation: {val_results}")
     print(f"training: {train_results}")

@@ -145,7 +145,7 @@ class CrowdDataModule(pl.LightningDataModule):
         return DataLoader(self.val_ds, batch_size=1, num_workers=4, pin_memory=True)
 
     def test_dataloader(self):
-        return DataLoader(self.test_ds or self.val_ds, batch_size=1, num_workers=4)
+        return DataLoader(self.test_ds or self.val_ds, batch_size=1, num_workers=4, pin_memory=True)
     
     def train_eval_dataloader(self):
         """Used ONLY for evaluating the training set cleanly."""
