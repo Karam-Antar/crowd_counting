@@ -38,16 +38,41 @@ class ModelPayload:
 
 # --- Shared Preparation Logic (Backend Agnostic) ---
 
+def get_requirements():
+    with open(config.SERVE_REQUIREMENTS_PATH, "r") as f:
+        serve_reqs = f.read().splitlines()
+        return serve_reqs
+
 def get_existing_code_files():
-    # 1. Get the list of files from Git
-    git_output = subprocess.check_output(
-            "git ls-files --cached --others --exclude-standard", 
+    try:
+        # 1. Find the true root of your git repository
+        git_root = subprocess.check_output(
+            "git rev-parse --show-toplevel", 
             shell=True, 
             text=True
-        )
+        ).strip()
+        git_root_path = Path(git_root)
+    except subprocess.CalledProcessError:
+        print("⚠️ Not a git repository! Falling back to current directory.")
+        git_root_path = Path.cwd()
+
+    # 2. Get the list of files from the Git root
+    # Running it 'cwd=git_root_path' forces git to scan the WHOLE project (including src/)
+    git_output = subprocess.check_output(
+        "git ls-files --cached --others --exclude-standard", 
+        cwd=git_root_path,
+        shell=True, 
+        text=True
+    )
         
-    # 2. Filter out files that have been deleted locally
-    existing_files = [f for f in git_output.splitlines() if Path(f).exists()]
+    # 3. Filter out files that don't exist, making sure paths are relative to git root
+    existing_files = []
+    for f in git_output.splitlines():
+        full_path = git_root_path / f
+        if full_path.exists():
+            # Keep the path relative so the tarball extracts beautifully
+            existing_files.append(f)
+            
     return existing_files
 
 
@@ -77,7 +102,7 @@ def zip_code(artifacts_path: Path):
 
 
 def add_metadata(artifacts_path: Path, params: BaseParams, experiment_name: str, metrics: dict, empty_files=False):
-    config_file_path = artifacts_path / "model_config.json"
+    config_file_path = artifacts_path
     best_metrics = {k: v for k, v in metrics.items() if str(k).casefold().startswith('best')}
     params.to_json(config_file_path, meta={'experiment': experiment_name, 'metrics': best_metrics})
     if empty_files:
@@ -91,7 +116,7 @@ def prepare_temp_dir(artifacts_path: Path, payload: ModelPayload, experiment_nam
     os.makedirs(artifacts_path, exist_ok=True)
     
     # 1. Add Config and Metadata
-    add_metadata(artifacts_path, payload.params, experiment_name, payload.metrics)
+    add_metadata(artifacts_path / config.PARAMS_SAVE_FILENAME, payload.params, experiment_name, payload.metrics)
     
     # 2. Save PyTorch Model
     # if isinstance(payload.tracker.logger, LitLogger):

@@ -100,7 +100,7 @@ class BaseLitModel(pl.LightningModule):
         """
         Custom inference method for single inputs.
         """
-        import core.inference as inference
+        import src.core.inference as inference
         return inference.predict(self.model, x, self.device)
     
 

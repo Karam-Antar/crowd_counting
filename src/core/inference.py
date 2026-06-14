@@ -20,10 +20,10 @@ def predict(model, x: torch.Tensor, device=config.device):
             
         density_map = model(x) / config.LABEL_SCALER
         
-        # Ensure no negative predictions (same as your CrowdCounter head logic)
+        # Ensure no negative predictions
         density_map = F.relu(density_map) 
         
         # The total count is the integral (sum) of the density map
-        total_count = density_map.sum().item()
+        total_counts = density_map.sum(dim=(1, 2, 3))
         
-        return total_count, density_map.squeeze(0)
+        return total_counts, density_map

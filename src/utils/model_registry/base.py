@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Any
 
+from src import config
 from src.core.exported_model import ExportedModel
 from src.core.params import BaseParams
 from src.models.lit_model import BaseLitModel
@@ -41,7 +42,7 @@ class BaseRegistry(ABC):
         return model_cls.load_from_checkpoint(f'{download_dir}/{ckpt_relative_path}', weights_only=False)
 
     def load_params(self, downloaded_paths: list[str], download_dir: str):
-        params_relative_path = next((p for p in downloaded_paths if p.casefold().endswith('model_config.json')), None)
+        params_relative_path = next((p for p in downloaded_paths if p.casefold().endswith(config.PARAMS_SAVE_FILENAME)), None)
         if not params_relative_path:
             raise FileNotFoundError("No params file found in the downloaded model artifacts!")
             
