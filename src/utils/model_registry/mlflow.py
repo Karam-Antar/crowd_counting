@@ -3,11 +3,10 @@ from pathlib import Path
 import numpy as np
 import torch
 import mlflow
-from mlflow.models import infer_signature
 from unittest.mock import patch
 from src import config
+from src.core.exported_model import ExportedModel
 from src.core.pyfunc import ProductionPyTorchWrapper
-from src.utils.model_persistence import prepare_model_to_export, save_model
 from src.utils.model_registry.base import BaseRegistry
 from src.utils.model_registry.utils import ModelPayload, add_metadata, get_existing_code_files, get_requirements, is_metric_better_than_history, prepare_temp_dir, zip_code
 from mlflow.models.signature import ModelSignature
@@ -15,6 +14,24 @@ from mlflow.types.schema import Schema, TensorSpec
 
 
 class MLFlowRegistry(BaseRegistry):
+
+    def load_model(self, model_uri: str, **kwargs):
+        """
+        Loads an MLflow pyfunc model directly via its URI and unwraps it.
+        Example model_uri: "models:/crowd_counting/49" or "models:/crowd_counting/@champion"
+        """
+        # 1. Download and load the PyFunc wrapper into memory automatically
+        pyfunc_wrapper = mlflow.pyfunc.load_model(model_uri)
+        
+        # 2. Unwrap it to expose your custom ProductionPyTorchWrapper instance
+        custom_class_instance = pyfunc_wrapper.unwrap_python_model()
+        
+        # 3. Extract the fully initialized PyTorch model and parameters
+        # (These were automatically populated by your load_context method)
+        model = ExportedModel(custom_class_instance.model)
+        params = custom_class_instance.params
+        
+        return model, params
 
 
     def log_model(self, payload: ModelPayload):
@@ -34,12 +51,12 @@ class MLFlowRegistry(BaseRegistry):
             add_metadata(params_path, payload.params, payload.tracker.full_experiment_name, payload.metrics)
             return mlflow.pyfunc.log_model(
                 name=payload.tracker.model_name,
-                python_model=ProductionPyTorchWrapper(),
+                python_model=config.PYFUNC_MODEL_PATH,
                 artifacts={
                     "weights": str(weights_path),
                     "params": str(params_path)
                 },
-                code_paths=["/teamspace/studios/this_studio/workspace/crowd_counting/src/"], 
+                code_paths=[config.SERVE_CODE_PATH], 
                 signature=signature, # Use the new multi-image signature
                 pip_requirements=get_requirements(),
             )

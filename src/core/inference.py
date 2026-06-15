@@ -5,10 +5,7 @@ import torch.nn.functional as F
 @torch.no_grad()
 def predict(model, x: torch.Tensor, device=config.device):
         """
-        Custom inference method for single inputs.
-        """
-        """
-        Custom inference method for single inputs.
+        Custom inference method for single or batched inputs.
         """
         # 1. Handle dimensionality (C, H, W) -> (1, C, H, W)
         if not isinstance(model, torch.fx.GraphModule):
@@ -18,12 +15,20 @@ def predict(model, x: torch.Tensor, device=config.device):
         if x.dim() == 3:
             x = x.unsqueeze(0)
             
+        # 2. Forward pass
         density_map = model(x) / config.LABEL_SCALER
         
-        # Ensure no negative predictions
+        # 3. Squeeze the channel dimension IMMEDIATELY
+        # Converts [Batch, 1, Height, Width] -> [Batch, Height, Width]
+        if density_map.dim() == 4 and density_map.shape[1] == 1:
+            density_map = density_map.squeeze(1)
+        
+        # 4. Ensure no negative predictions
         density_map = F.relu(density_map) 
         
-        # The total count is the integral (sum) of the density map
-        total_counts = density_map.sum(dim=(1, 2, 3))
+        # 5. The total count is the sum of the density map.
+        # Note: Because we removed the channel dimension, density_map is now 3D [B, H, W].
+        # We sum over H (dim 1) and W (dim 2). 
+        total_counts = density_map.sum(dim=(1, 2))
         
         return total_counts, density_map

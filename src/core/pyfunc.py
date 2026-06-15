@@ -32,7 +32,7 @@ class ProductionPyTorchWrapper(mlflow.pyfunc.PythonModel):
         self.model.eval()
         self.model.to(self.device)
 
-    def predict(self, context, model_input):
+    def predict(self, context, model_input) -> list[dict[str, np.ndarray]]:
         """
         Executed for every REST API request.
         Handles I/O translation and preprocessing.
@@ -84,3 +84,6 @@ class ProductionPyTorchWrapper(mlflow.pyfunc.PythonModel):
             })
 
         return results
+
+
+mlflow.models.set_model(ProductionPyTorchWrapper())

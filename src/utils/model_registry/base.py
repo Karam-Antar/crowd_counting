@@ -32,32 +32,37 @@ class BaseRegistry(ABC):
         pass
 
     # --- Shared Loading Methods ---
-    
+    @abstractmethod
     def load_model_from_ckpt(self, model_name: str, model_cls: type[BaseLitModel]):
-        downloaded_paths, download_dir = self.download_model(model_name)
-        ckpt_relative_path = next((p for p in downloaded_paths if p.casefold().endswith('.ckpt')), None)
+        pass
+        # downloaded_paths, download_dir = self.download_model(model_name)
+        # ckpt_relative_path = next((p for p in downloaded_paths if p.casefold().endswith('.ckpt')), None)
 
-        if not ckpt_relative_path:
-            raise FileNotFoundError("No .ckpt file found in the downloaded model artifacts!")
-        return model_cls.load_from_checkpoint(f'{download_dir}/{ckpt_relative_path}', weights_only=False)
-
+        # if not ckpt_relative_path:
+        #     raise FileNotFoundError("No .ckpt file found in the downloaded model artifacts!")
+        # return model_cls.load_from_checkpoint(f'{download_dir}/{ckpt_relative_path}', weights_only=False)
+    
+    @abstractmethod
     def load_params(self, downloaded_paths: list[str], download_dir: str):
-        params_relative_path = next((p for p in downloaded_paths if p.casefold().endswith(config.PARAMS_SAVE_FILENAME)), None)
-        if not params_relative_path:
-            raise FileNotFoundError("No params file found in the downloaded model artifacts!")
+        pass
+        # params_relative_path = next((p for p in downloaded_paths if p.casefold().endswith(config.PARAMS_SAVE_FILENAME)), None)
+        # if not params_relative_path:
+        #     raise FileNotFoundError("No params file found in the downloaded model artifacts!")
             
-        try:
-            return BaseParams.from_json(f'{download_dir}/{params_relative_path}')
-        except Exception as e:
-            print(e)
-            raise e
-
-    def load_model(self, model_name: str, **kwargs):
-        downloaded_paths, download_dir = self.download_model(model_name, **kwargs)
-        model_relative_path = next((p for p in downloaded_paths if p.casefold().endswith('.pt2')), None)
-        if not model_relative_path:
-            raise FileNotFoundError("No .pt2 file found in the downloaded model artifacts!")
+        # try:
+        #     return BaseParams.from_json(f'{download_dir}/{params_relative_path}')
+        # except Exception as e:
+        #     print(e)
+        #     raise e
         
-        model = ExportedModel(load_model(f'{download_dir}/{model_relative_path}'))
-        params = self.load_params(downloaded_paths, download_dir)
-        return model, params
+    @abstractmethod
+    def load_model(self, model_name: str, **kwargs):
+        pass
+        # downloaded_paths, download_dir = self.download_model(model_name, **kwargs)
+        # model_relative_path = next((p for p in downloaded_paths if p.casefold().endswith('.pt2')), None)
+        # if not model_relative_path:
+        #     raise FileNotFoundError("No .pt2 file found in the downloaded model artifacts!")
+        
+        # model = ExportedModel(load_model(f'{download_dir}/{model_relative_path}'))
+        # params = self.load_params(downloaded_paths, download_dir)
+        # return model, params

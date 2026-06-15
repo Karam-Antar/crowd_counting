@@ -18,6 +18,8 @@ DATASET_PATH = SHANGHAI_PATH
 TRAIN_PATH = f'{DATASET_PATH}/train' if DATASET_PATH == JHU_PATH else f'{DATASET_PATH}/train_data'
 TEST_PATH = f'{DATASET_PATH}/test' if DATASET_PATH == JHU_PATH else f'{DATASET_PATH}/test_data'
 SERVE_REQUIREMENTS_PATH = '/teamspace/studios/this_studio/workspace/crowd_counting/requirements-serve.txt'
+SERVE_CODE_PATH = '/teamspace/studios/this_studio/workspace/crowd_counting/src/'
+PYFUNC_MODEL_PATH = '/teamspace/studios/this_studio/workspace/crowd_counting/src/core/pyfunc.py'
 PARAMS_SAVE_FILENAME = 'model_config.json'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

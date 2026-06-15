@@ -7,6 +7,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Any
+import zipfile
 from lightning.pytorch.loggers import LitLogger
 import torch
 import urllib.parse
@@ -45,19 +46,16 @@ def get_requirements():
 
 def get_existing_code_files():
     try:
-        # 1. Find the true root of your git repository
         git_root = subprocess.check_output(
             "git rev-parse --show-toplevel", 
             shell=True, 
             text=True
         ).strip()
-        git_root_path = Path(git_root)
+        git_root_path = Path(git_root).resolve()
     except subprocess.CalledProcessError:
         print("⚠️ Not a git repository! Falling back to current directory.")
-        git_root_path = Path.cwd()
+        git_root_path = Path.cwd().resolve()
 
-    # 2. Get the list of files from the Git root
-    # Running it 'cwd=git_root_path' forces git to scan the WHOLE project (including src/)
     git_output = subprocess.check_output(
         "git ls-files --cached --others --exclude-standard", 
         cwd=git_root_path,
@@ -65,40 +63,37 @@ def get_existing_code_files():
         text=True
     )
         
-    # 3. Filter out files that don't exist, making sure paths are relative to git root
-    existing_files = []
+    absolute_files = []
     for f in git_output.splitlines():
-        full_path = git_root_path / f
+        full_path = (git_root_path / f).resolve()
         if full_path.exists():
-            # Keep the path relative so the tarball extracts beautifully
-            existing_files.append(f)
+            absolute_files.append(full_path)
             
-    return existing_files
-
+    return absolute_files, git_root_path
 
 def zip_code(artifacts_path: Path):
-    code_path = artifacts_path / "code.tar.gz"
+    # Change the extension to .zip
+    code_path = artifacts_path / "code.zip"
     code_path.parent.mkdir(parents=True, exist_ok=True)
     
-    try:
-        existing_files = get_existing_code_files()
-        
-        if not existing_files:
-            print("⚠️ No valid files found to zip.")
-            return
+    files, git_root = get_existing_code_files()
+    
+    if not files:
+        print("⚠️ No valid files found to zip.")
+        return
 
-        # 3. Pass the filtered list to tar via standard input
-        subprocess.run(
-            f"tar -czvf '{code_path.as_posix()}' -T -", 
-            input="\n".join(existing_files),
-            shell=True, 
-            check=True,
-            text=True
-        )
-        print(f"✅ Zip created successfully at {code_path}")
-        
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to create zip: {e}")
+    print(f"📦 Creating archive at {code_path}...")
+    
+    # Open with zipfile, using ZIP_DEFLATED to actually compress the data
+    with zipfile.ZipFile(code_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for file_path in files:
+            # Cut the absolute prefix exactly as before
+            relative_arcname = file_path.relative_to(git_root)
+            
+            # Use .write() instead of .add()
+            zipf.write(file_path, arcname=relative_arcname)
+            
+    print(f"✅ Zip created successfully at {code_path}")
 
 
 def add_metadata(artifacts_path: Path, params: BaseParams, experiment_name: str, metrics: dict, empty_files=False):
