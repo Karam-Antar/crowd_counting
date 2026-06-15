@@ -32,7 +32,7 @@ class BaseRegistry(ABC):
         pass
 
     # --- Shared Loading Methods ---
-    @abstractmethod
+    # @abstractmethod
     def load_model_from_ckpt(self, model_name: str, model_cls: type[BaseLitModel]):
         pass
         # downloaded_paths, download_dir = self.download_model(model_name)
@@ -42,7 +42,7 @@ class BaseRegistry(ABC):
         #     raise FileNotFoundError("No .ckpt file found in the downloaded model artifacts!")
         # return model_cls.load_from_checkpoint(f'{download_dir}/{ckpt_relative_path}', weights_only=False)
     
-    @abstractmethod
+    # @abstractmethod
     def load_params(self, downloaded_paths: list[str], download_dir: str):
         pass
         # params_relative_path = next((p for p in downloaded_paths if p.casefold().endswith(config.PARAMS_SAVE_FILENAME)), None)

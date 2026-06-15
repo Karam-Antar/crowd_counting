@@ -1,7 +1,7 @@
 h5py==3.16.0
 lightning==2.6.1
 litlogger==2026.4.16
-matplotlib==3.11.0
+matplotlib==3.10.9
 numpy==2.4.6
 optuna==4.8.0
 Pillow==12.2.0

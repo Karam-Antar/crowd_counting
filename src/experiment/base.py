@@ -85,8 +85,8 @@ class BaseExperimentRunner(ABC):
             precision="bf16-mixed",
             gradient_clip_val=self.params.grad_clip,
             # log_every_n_steps=1,
-            limit_train_batches=1,
-            limit_val_batches=1,
+            # limit_train_batches=1,
+            # limit_val_batches=1,
         )
 
         trainer.fit(lit_model, datamodule=self.datamodule)

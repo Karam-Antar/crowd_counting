@@ -17,4 +17,4 @@ def preprocess(img, params):
         v2.Normalize(mean=mean, std=std)
     ])
     img = transforms(img)
-    return img
+    return img[0] if isinstance(img, list) and len(img) == 1 else img
