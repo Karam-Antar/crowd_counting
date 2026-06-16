@@ -51,7 +51,7 @@ class CrowdDataModule(pl.LightningDataModule):
             v2.ToDtype(torch.float32, scale=True),                  # Applied ONLY to Image
             SafePhotometricRandAugment(
                 num_ops=params.num_ops or 4, 
-                magnitude=int(params.aug_factor * 30)
+                magnitude=int(params.aug_factor)
             ) if params.aug_factor else v2.Identity(),
             v2.Normalize(mean=mean, std=std)                        # Applied ONLY to Image
         ])

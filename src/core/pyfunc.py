@@ -4,6 +4,7 @@ import json
 import numpy as np
 
 from src.core import inference
+from src.data.transform import UnpadToOriginal
 
 class ProductionPyTorchWrapper(mlflow.pyfunc.PythonModel):
     
@@ -53,6 +54,7 @@ class ProductionPyTorchWrapper(mlflow.pyfunc.PythonModel):
             
         # 3. Permute the entire batch: [B, H, W, C] -> [B, C, H, W]
         raw_tensor = raw_tensor.permute(0, 3, 1, 2)
+        h, w = raw_tensor.shape[-2:]
         img = preprocess(raw_tensor, self.params)
         if isinstance(img, list) and len(img) == 1:
             img = img[0]
@@ -69,7 +71,7 @@ class ProductionPyTorchWrapper(mlflow.pyfunc.PythonModel):
         # 4. Run inference safely
         # Model returns two outputs: a float/vector score and a matrix/tensor density map
         counts, density_maps = inference.predict(self.model, img, device=self.device)
-
+        density_maps = UnpadToOriginal()(density_maps, original_shape=(h, w))
         # 5. Post-processing: Move off GPU and convert back to standard NumPy arrays
         counts = counts.cpu().numpy()
         density_maps = density_maps.cpu().numpy()

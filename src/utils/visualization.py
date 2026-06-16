@@ -133,13 +133,39 @@ def get_layer_output(model, img_tensor, layer_name):
     layer_output = outputs['output']
     return layer_output
 
+
+def visualize_filter(channel_image, filter_index, layer_name, cmap):
+
+    # Normalize for better visualization (matching your exact logic)
+    p_low, p_high = np.percentile(channel_image, (1, 99))
+    channel_image = np.clip(channel_image, p_low, p_high)
+    channel_image -= channel_image.min()
+    channel_image /= (channel_image.max() + 1e-8)
+
+    # Plot the single selected filter channel
+    plt.figure(figsize=(6, 6)) # Square sizing looks great for individual maps
+    plt.title(f"{layer_name} - Filter Index {filter_index}")
+    plt.grid(False)
+    plt.axis('off') 
+    plt.imshow(channel_image, cmap=cmap)
+    plt.show()
+
 # --- Step 3: Visualize feature maps ---
-def visualize_feature_maps_grid(layer_output, layer_name, cmap='viridis'):
+def visualize_feature_maps_grid(layer_output, layer_name, cmap, filter_index):
     """Tile feature maps into a single grid array and display them with one imshow."""
     # PyTorch outputs (B, C, H, W). We take the first item in the batch.
     features = layer_output[0].detach().numpy()  # Shape: (C, H, W)
     n_features = features.shape[0]
     h, w = features.shape[1], features.shape[2]
+
+    if filter_index is not None:
+        # Safety Check
+        if filter_index < 0 or filter_index >= n_features:
+            raise ValueError(f"Requested filter_index {filter_index}, but layer '{layer_name}' only has {n_features} channels.")
+        
+        # Pull single feature map
+        channel_image = features[filter_index, :, :]
+        visualize_filter(channel_image, filter_index, layer_name, cmap)
 
     # Calculate grid dimensions (Max 8 columns to match your Keras styling)
     n_cols = min(8, n_features)
@@ -176,7 +202,7 @@ def visualize_feature_maps_grid(layer_output, layer_name, cmap='viridis'):
     plt.show()
 
 # --- Main function that ties everything together ---
-def visualize_feature_maps(model, history, layer_name, input_tensor=None, cmap='gray', device=config.device):
+def visualize_feature_maps(model, history, layer_name, filter_index=None, input_tensor=None, cmap='gray', device=config.device):
     """
     Visualizes the feature maps of a specific PyTorch layer for a given input tensor.
     """
@@ -188,7 +214,7 @@ def visualize_feature_maps(model, history, layer_name, input_tensor=None, cmap='
     # Extract and plot
     # layer_output = get_layer_output(model, img_tensor, layer_name)
     print(f"Visualizing layer: {layer_name}")
-    visualize_feature_maps_grid(history[layer_name].activation, layer_name, cmap)
+    visualize_feature_maps_grid(history[layer_name].activation, layer_name, cmap, filter_index)
 
 
 def visualize_model_graph(model: torch.nn.Module, datamodule=None, sample=None):

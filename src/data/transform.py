@@ -23,7 +23,22 @@ class PadToMultiple(torch.nn.Module):
         # Apply the same padding to image and mask
         return [F.pad(item, padding, fill=0) for item in inputs]
     
+class UnpadToOriginal(torch.nn.Module):
+    """Removes the right and bottom padding to restore the tensor to its original dimensions."""
+    def __init__(self):
+        super().__init__()
 
+    def forward(self, padded_tensor, original_shape):
+        """
+        Args:
+            padded_tensor (Tensor): The model's output tensor (e.g., shape [B, C, H_padded, W_padded])
+            original_shape (tuple or torch.Size): The (height, width) of the image before padding
+        """
+        # Extract the original height and width
+        org_h, org_w = original_shape[-2:]
+        
+        # Use ellipsis (...) to cleanly handle any batch or channel dimensions
+        return padded_tensor[..., :org_h, :org_w]
 
 
 class CustomRandomCrop:
@@ -66,33 +81,40 @@ class SafePhotometricRandAugment(torch.nn.Module):
     Mimics v2.RandAugment but restricts operations strictly to pixel-level (color/lighting) 
     transforms. This prevents geometric operations from misaligning the image and density map.
     """
-    def __init__(self, num_ops: int = 2, magnitude: int = 9):
+    def __init__(self, num_ops: int = 2, magnitude: int = 0.3):
         super().__init__()
         self.num_ops = num_ops
-        self.magnitude = magnitude
+        
+        # Scale magnitude safely to a [0, 1] range factor
+        mag_scale = magnitude
+        
+        # Instantiate safe, linear operations ONCE during initialization.
+        # Notice internal probabilities are set to 1.0 because execution 
+        # randomness is controlled by our random.sample selection process.
+        self.op_pool = torch.nn.ModuleList([
+            v2.ColorJitter(
+                brightness=0.6 * mag_scale, 
+                contrast=0.6 * mag_scale, 
+                saturation=0.6 * mag_scale, 
+                hue=0.08 * mag_scale
+            ),
+            v2.RandomGrayscale(p=mag_scale),
+            # Kernel size must be an odd integer
+            v2.GaussianBlur(kernel_size=3, sigma=(0.1, 0.1 + 1.5 * mag_scale)),
+            v2.RandomAdjustSharpness(sharpness_factor=1.0 + mag_scale, p=1.0)
+        ])
 
     def forward(self, img: torch.Tensor) -> torch.Tensor:
-        # Scale intensity linearly based on the magnitude (assuming a 0-30 scale)
-        mag_scale = self.magnitude / 30.0  
+        # 1. Pre-clamp guard: Ensure input is clean [0, 1] float data
+        img = torch.clamp(img, 0.0, 1.0)
         
-        # Pool of strictly photometric operations that preserve pixel positions
-        ops = [
-            v2.ColorJitter(
-                brightness=0.1 + 0.3 * mag_scale, 
-                contrast=0.1 + 0.3 * mag_scale, 
-                saturation=0.1 + 0.3 * mag_scale, 
-                hue=0.02 + 0.08 * mag_scale
-            ),
-            v2.RandomGrayscale(p=0.2),
-            v2.GaussianBlur(kernel_size=(3, 5), sigma=(0.1, 0.1 + 1.9 * mag_scale)),
-            v2.RandomSolarize(threshold=1.0 - 0.4 * mag_scale, p=0.2),
-            v2.RandomAdjustSharpness(sharpness_factor=1.0 + mag_scale, p=0.3),
-            v2.RandomAutocontrast(p=0.2)
-        ]
+        # 2. Randomly sample N distinct operations from our safe pool
+        num_to_sample = min(self.num_ops, len(self.op_pool))
+        sampled_indices = random.sample(range(len(self.op_pool)), num_to_sample)
         
-        # Dynamically stack N unique operations sequentially every batch/epoch
-        sampled_ops = random.sample(ops, min(self.num_ops, len(ops)))
-        for op in sampled_ops:
-            img = op(img)
+        # 3. Apply operations sequentially
+        for idx in sampled_indices:
+            img = self.op_pool[idx](img)
             
-        return img
+        # 4. Post-clamp guard: Prevent any pixel overflow from reaching the network
+        return torch.clamp(img, 1e-6, 1.0)
