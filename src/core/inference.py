@@ -24,7 +24,7 @@ def predict(model, x: torch.Tensor, device=config.device):
             density_map = density_map.squeeze(1)
         
         # 4. Ensure no negative predictions
-        density_map = F.relu(density_map) 
+        # density_map = F.softplus(density_map) 
         
         # 5. The total count is the sum of the density map.
         # Note: Because we removed the channel dimension, density_map is now 3D [B, H, W].
