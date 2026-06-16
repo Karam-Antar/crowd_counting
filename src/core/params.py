@@ -33,6 +33,7 @@ class BaseParams:
     lr_schedule: Optional[str] = None
     # min_lr_pct: Optional[float] = None
     monitor_metric: str = 'val_nae'
+    loss_function: str = 'mse'
     grad_accumulation: int = 1
     grad_clip: Optional[float] = None
     scheduler_kwargs: Dict[str, Any] = field(default_factory=dict)

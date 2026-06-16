@@ -85,7 +85,7 @@ class EnsembledCrowdCounter:
             batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
             
             # 1. Forward pass
-            pred = self.predict(batch_x.cpu().numpy())
+            pred = self.predict(batch_x.permute(0,2,3,1).cpu().numpy().astype('uint8'))
             
             # 2. Calculate the counts by summing across spatial and channel dimensions
             # Assuming shape is [Batch, Channel, Height, Width]

@@ -8,6 +8,7 @@ from torchvision.transforms import v2
 
 from src import config
 from src.core.params import BaseParams
+from src.models.loss import HybridMSESSIMLoss, SSIMLoss
 from src.models.model import CrowdCounter
 # from src.utils.registries import MODEL_REGISTRY
 
@@ -27,7 +28,12 @@ class BaseLitModel(pl.LightningModule):
             'rmse': torchmetrics.MeanSquaredError(squared=False),
             'nae': torchmetrics.MeanAbsolutePercentageError()
         })
-        self.criterion = torch.nn.MSELoss()
+        if params.loss_function == 'mse_ssim':
+            self.criterion = HybridMSESSIMLoss()
+        elif params.loss_function == 'ssim':
+            self.criterion = SSIMLoss()
+        else:
+            self.criterion = torch.nn.MSELoss()
         self.train_metrics = metrics.clone(prefix='train_')
         self.val_metrics = metrics.clone(prefix='val_')
     
