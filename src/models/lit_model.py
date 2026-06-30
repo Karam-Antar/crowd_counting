@@ -41,7 +41,8 @@ class BaseLitModel(pl.LightningModule):
         # x = self.transform(x)
         return self.model(x)
     
-    def _shared_step(self, batch):
+
+    def training_step(self, batch, batch_idx):
         x, y = batch # x: Image, y: Density Map
         # print(x.shape)
         
@@ -55,11 +56,6 @@ class BaseLitModel(pl.LightningModule):
         # We compare the SUM of the maps (the actual person count)
         pred_count = torch.sum(preds, dim=(1, 2, 3))
         gt_count = torch.sum(y, dim=(1, 2, 3))
-        
-        return loss, pred_count, gt_count
-
-    def training_step(self, batch, batch_idx):
-        loss, pred_count, gt_count = self._shared_step(batch)
         pred_count /= self.params.label_scaler
         gt_count /= self.params.label_scaler + 1e-6
         
@@ -71,13 +67,29 @@ class BaseLitModel(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss, pred_count, gt_count = self._shared_step(batch)
+        """
+        Validation step is now beautifully clean.
+        """
+        images, gt_density = batch
         
-        # Update and log all metrics at once
+        # 1. Use the reusable sliding window method
+        # (You can pass self.params.window_size if you have it in your config)
+        full_density_map = self.model.sliding_window_inference(images)
+        
+        # 2. Loss & Metrics Calculation
+        if gt_density.dim() == 4 and gt_density.shape[1] == 1:
+            gt_density = gt_density.squeeze(1)
+            
+        loss = self.criterion(full_density_map, gt_density)
+
+        pred_count = full_density_map.sum(dim=(1, 2))
+        gt_count = gt_density.sum(dim=(1, 2))
+        
         self.val_metrics(pred_count, gt_count)
         self.log_dict(self.val_metrics, on_step=False, on_epoch=True, prog_bar=True)
         self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log('epoch_idx', self.current_epoch, on_step=False, on_epoch=True)
+        
+        return loss
     
 
     def configure_optimizers(self):
