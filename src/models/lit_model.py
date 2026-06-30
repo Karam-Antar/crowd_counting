@@ -53,13 +53,15 @@ class BaseLitModel(pl.LightningModule):
         
         # 4. Count-based Metrics
         # We compare the SUM of the maps (the actual person count)
-        pred_count = torch.sum(preds, dim=(1, 2, 3)) / self.params.label_scaler
-        gt_count = torch.sum(y, dim=(1, 2, 3)) / self.params.label_scaler + 1e-6
+        pred_count = torch.sum(preds, dim=(1, 2, 3))
+        gt_count = torch.sum(y, dim=(1, 2, 3))
         
         return loss, pred_count, gt_count
 
     def training_step(self, batch, batch_idx):
         loss, pred_count, gt_count = self._shared_step(batch)
+        pred_count /= self.params.label_scaler
+        gt_count /= self.params.label_scaler + 1e-6
         
         # Update and log all metrics at once
         output = self.train_metrics(pred_count, gt_count)

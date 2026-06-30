@@ -93,7 +93,7 @@ class EnsembledCrowdCounter:
             
             # 3. FIX: Convert predictions to a PyTorch tensor on the correct GPU/CPU device
             pred_count_tensor = torch.tensor(pred_counts_list, dtype=torch.float32, device=self.device)
-            gt_count = batch_y.sum(dim=(1, 2, 3)) / config.LABEL_SCALER
+            gt_count = batch_y.sum(dim=(1, 2, 3))
             print(pred_count_tensor, gt_count)
             
             # 3. MetricCollection updates all metrics simultaneously

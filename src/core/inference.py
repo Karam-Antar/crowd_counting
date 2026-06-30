@@ -16,7 +16,7 @@ def predict(model, x: torch.Tensor, device=config.device):
             x = x.unsqueeze(0)
             
         # 2. Forward pass
-        density_map = model(x) / config.LABEL_SCALER
+        density_map = model(x)
         
         # 3. Squeeze the channel dimension IMMEDIATELY
         # Converts [Batch, 1, Height, Width] -> [Batch, Height, Width]

@@ -69,8 +69,8 @@ class ExportedModel:
             
             # 2. Calculate the counts by summing across spatial and channel dimensions
             # Assuming shape is [Batch, Channel, Height, Width]
-            pred_count = pred_density.sum(dim=(1, 2, 3)) / config.LABEL_SCALER
-            gt_count = batch_y.sum(dim=(1, 2, 3)) / config.LABEL_SCALER
+            pred_count = pred_density.sum(dim=(1, 2, 3))
+            gt_count = batch_y.sum(dim=(1, 2, 3))
             print(pred_count, gt_count)
             
             # 3. MetricCollection updates all metrics simultaneously

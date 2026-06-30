@@ -84,8 +84,8 @@ class CrowdDataModule(pl.LightningDataModule):
     def apply_test_transforms(self, img, mask):
         img, mask = self.test_joint_augs(img, mask)
         img = self.test_image_augs(img)
-        if mask is not None:
-            mask = mask * (self.params.label_scaler or 1)
+        # if mask is not None:
+        #     mask = mask * (self.params.label_scaler or 1)
         return img, mask
 
     def setup(self, stage=None):
