@@ -77,16 +77,21 @@ class BaseLitModel(pl.LightningModule):
         full_density_map = self.model.sliding_window_inference(images)
         
         # 2. Loss & Metrics Calculation
-        if gt_density.dim() == 4 and gt_density.shape[1] == 1:
-            gt_density = gt_density.squeeze(1)
+        loss_pred = full_density_map.unsqueeze(1) if full_density_map.dim() == 3 else full_density_map
+        loss_gt = gt_density.unsqueeze(1) if gt_density.dim() == 3 else gt_density
             
-        loss = self.criterion(full_density_map, gt_density)
+        # Calculate loss with 4D tensors
+        loss = self.criterion(loss_pred, loss_gt)
 
-        pred_count = full_density_map.sum(dim=(1, 2))
-        gt_count = gt_density.sum(dim=(1, 2))
+        B = full_density_map.shape[0]
+        pred_count = full_density_map.contiguous().view(B, -1).sum(dim=1)
+        gt_count = gt_density.contiguous().view(B, -1).sum(dim=1)
         
+        
+        # 4. Log everything
         self.val_metrics(pred_count, gt_count)
         self.log_dict(self.val_metrics, on_step=False, on_epoch=True, prog_bar=True)
+        self.log('epoch_idx', self.current_epoch, on_step=False, on_epoch=True)
         self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
         
         return loss

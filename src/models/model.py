@@ -1,4 +1,5 @@
 import torch
+from src import config
 from src.core.params import BaseParams
 from src.models.hrnet.net import HRNet
 import torch.nn.functional as F
@@ -26,7 +27,7 @@ class CrowdCounter(torch.nn.Module):
         return density_map
     
 
-    def sliding_window_inference(self, images: torch.Tensor) -> torch.Tensor:
+    def sliding_window_inference(self, images: torch.Tensor, device=config.device) -> torch.Tensor:
         """
         Reusable method that handles padding, patching, and recombining 
         the image using a sliding window. 
@@ -44,8 +45,8 @@ class CrowdCounter(torch.nn.Module):
         _, _, curr_h, curr_w = images.shape
         
         # 2. Prepare accumulators
-        full_density_map = torch.zeros((B, curr_h, curr_w), device=self.device)
-        overlap_count = torch.zeros((B, curr_h, curr_w), device=self.device)
+        full_density_map = torch.zeros((B, curr_h, curr_w), device=device)
+        overlap_count = torch.zeros((B, curr_h, curr_w), device=device)
         
         y_coords = list(range(0, curr_h - window_size + 1, stride))
         x_coords = list(range(0, curr_w - window_size + 1, stride))

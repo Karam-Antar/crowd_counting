@@ -9,6 +9,9 @@ from torchmetrics import MeanAbsolutePercentageError, MetricCollection, MeanAbso
 from typing import Union, Dict, Optional, Tuple
 from src import config
 from src.core import inference
+from src.models.lit_model import BaseLitModel
+from src.models.model import CrowdCounter
+import lightning.pytorch as pl
 
 class ExportedModel:
     """
@@ -20,7 +23,7 @@ class ExportedModel:
         self.device = torch.device(device)
         
         # Extract the optimized callable module from the exported program
-        self.model = (self.exported_program.module() if self.exported_program else exported_program).to(device)
+        self.model: CrowdCounter = (self.exported_program.module() if self.exported_program else exported_program).to(device)
         
         if metrics is None:
             # Standard Crowd Counting metrics
@@ -59,25 +62,27 @@ class ExportedModel:
         
         # Reset metrics to ensure a clean slate for this run
         self.metrics.reset()
-
-        for batch_x, batch_y in loader:
-            batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
+        validator = pl.Trainer()
+        # val_results = trainer.validate(model, datamodule=self.datamodule, verbose=False)[0]
+        results = validator.validate(BaseLitModel(self.model.params, self.model), dataloaders=loader, verbose=False)[0]
+        # for batch_x, batch_y in loader:
+        #     batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
             
-            # 1. Forward pass
-            pred_density = self.model(batch_x)
-            # pred_density = F.relu(pred_density)
+        #     # 1. Forward pass
+        #     pred_density = self.model.sliding_window_inference(batch_x)
+        #     # pred_density = F.relu(pred_density)
             
-            # 2. Calculate the counts by summing across spatial and channel dimensions
-            # Assuming shape is [Batch, Channel, Height, Width]
-            pred_count = pred_density.sum(dim=(1, 2, 3))
-            gt_count = batch_y.sum(dim=(1, 2, 3))
-            print(pred_count, gt_count)
+        #     # 2. Calculate the counts by summing across spatial and channel dimensions
+        #     # Assuming shape is [Batch, Channel, Height, Width]
+        #     pred_count = pred_density.sum(dim=(1, 2, 3))
+        #     gt_count = batch_y.sum(dim=(1, 2, 3))
+        #     print(pred_count, gt_count)
             
-            # 3. MetricCollection updates all metrics simultaneously
-            self.metrics.update(pred_count, gt_count)
+        #     # 3. MetricCollection updates all metrics simultaneously
+        #     self.metrics.update(pred_count, gt_count)
 
         # compute() returns a dict: {'MAE': tensor(12.5), 'MSE': tensor(150.2)}
-        results = self.metrics.compute()
+        # results = self.metrics.compute()
         
         # Convert tensors to standard python floats for the final return
-        return {name: val.item() for name, val in results.items()}
+        return results.items()
