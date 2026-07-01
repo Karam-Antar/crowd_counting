@@ -1,10 +1,10 @@
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 import lightning.pytorch as pl
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
+from PIL import Image
 from torchmetrics import MeanAbsoluteError, MeanAbsolutePercentageError, MeanSquaredError, MetricCollection
-from src import config
 
 class EnsembledCrowdCounter:
     def __init__(self, models: list, metrics: Optional[MetricCollection] = None):
@@ -16,61 +16,43 @@ class EnsembledCrowdCounter:
         if not models:
             raise ValueError("You must provide at least one model wrapper to initialize the ensemble.")
         self.models = models
+        
         if metrics is None:
             # Standard Crowd Counting metrics
             self.metrics = MetricCollection({
                 "MAE": MeanAbsoluteError(),
-                "RMSE": MeanSquaredError(squared=False),  # RMSE
-                'NAE': MeanAbsolutePercentageError(),
+                "RMSE": MeanSquaredError(squared=False),
+                "NAE": MeanAbsolutePercentageError(),
             }).to(self.device)
         else:
             self.metrics = metrics.to(self.device)
 
-    def predict(self, model_input: np.ndarray) -> list[dict[str, np.ndarray]]:
+    def predict(self, model_input: np.ndarray) -> List[Dict[str, Union[float, np.ndarray]]]:
         """
         Aggregates outputs from all sub-models and computes the soft-voted (averaged) result.
-        Preserves the exact signature and return format of ProductionPyTorchWrapper.
+        Uses vectorized NumPy operations to eliminate manual loop accumulation.
         """
         # 1. Collect predictions from all underlying wrappers
-        # Each model.predict returns a list[dict[str, np.ndarray]]
+        # all_model_outputs shape: (num_models, batch_size) list of dicts
         all_model_outputs = [model.predict(model_input) for model in self.models]
 
-        num_models = len(self.models)
-        batch_size = len(all_model_outputs[0])
-        ensemble_results = []
+        # 2. Extract counts and density maps into NumPy arrays for vectorization
+        counts = np.array([[pred["count"] for pred in batch] for batch in all_model_outputs])
+        density_maps = np.array([[pred["density_map"] for pred in batch] for batch in all_model_outputs])
 
-        # 2. Iterate image by image through the batch to compute averages
-        for img_idx in range(batch_size):
-            total_count = 0.0
-            total_density_map = None
+        # 3. Perform soft voting (arithmetic mean) across the model dimension (axis 0)
+        avg_counts = counts.mean(axis=0)
+        avg_density_maps = density_maps.mean(axis=0)
 
-            for model_idx in range(num_models):
-                single_pred = all_model_outputs[model_idx][img_idx]
-                
-                total_count += single_pred["count"]
-                
-                # Initialize the numpy array accumulator on the first model iteration
-                if total_density_map is None:
-                    total_density_map = np.copy(single_pred["density_map"])
-                else:
-                    total_density_map += single_pred["density_map"]
-
-            # 3. Perform soft voting (arithmetic mean)
-            avg_count = total_count / num_models
-            avg_density_map = total_density_map / num_models
-
-            # 4. Pack back into the exact original dictionary structure
-            ensemble_results.append({
-                "count": float(avg_count),
-                "density_map": avg_density_map
-            })
-
-        return ensemble_results
-    
+        # 4. Pack back into the exact original dictionary structure
+        return [
+            {"count": float(c), "density_map": d} 
+            for c, d in zip(avg_counts, avg_density_maps)
+        ]
 
     def evaluate(self, data: Union[DataLoader, pl.LightningDataModule]) -> Dict[str, float]:
         """
-        Runs evaluation and returns a dictionary of all computed metrics (e.g., MAE, MSE).
+        Runs evaluation by loading raw images from paths provided by the DataLoader.
         """
         if isinstance(data, pl.LightningDataModule):
             data.setup(stage="test")
@@ -78,29 +60,34 @@ class EnsembledCrowdCounter:
         else:
             loader = data
         
-        # Reset metrics to ensure a clean slate for this run
         self.metrics.reset()
 
-        for batch_x, batch_y in loader:
-            batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
+        # The loader now yields a tuple of image paths (strings) and the ground truth tensor
+        for batch_paths, batch_y in loader:
+            batch_y = batch_y.to(self.device)
             
-            # 1. Forward pass
-            pred = self.predict(batch_x.permute(0,2,3,1).cpu().numpy().astype('uint8'))
+            # 1. Load raw images directly from the disk into a list of NumPy arrays
+            # PIL is safer here than cv2 because it natively opens in RGB format.
+            raw_images = np.array([np.array(Image.open(path).convert("RGB")) for path in batch_paths])
             
-            # 2. Calculate the counts by summing across spatial and channel dimensions
-            # Assuming shape is [Batch, Channel, Height, Width]
+            # 2. Forward pass
+            # NOTE: If your images are varying sizes, `predict` must be updated to 
+            # accept a List[np.ndarray] instead of a single stacked np.ndarray.
+            pred = self.predict(raw_images)
+            
+            # 3. Calculate the counts
             pred_counts_list = [img_pred['count'] for img_pred in pred]
-            
-            # 3. FIX: Convert predictions to a PyTorch tensor on the correct GPU/CPU device
             pred_count_tensor = torch.tensor(pred_counts_list, dtype=torch.float32, device=self.device)
-            gt_count = batch_y.sum(dim=(1, 2, 3))
-            print(pred_count_tensor, gt_count)
             
-            # 3. MetricCollection updates all metrics simultaneously
+            # Sum spatial/channel dimensions for ground truth (if GT is a density map)
+            # If your new dataloader just returns the integer count, change this to `gt_count = batch_y`
+            if batch_y.ndim > 1:
+                gt_count = batch_y.sum(dim=(1, 2, 3))
+            else:
+                gt_count = batch_y
+            
+            # 4. Update metrics
             self.metrics.update(pred_count_tensor, gt_count)
 
-        # compute() returns a dict: {'MAE': tensor(12.5), 'MSE': tensor(150.2)}
         results = self.metrics.compute()
-        
-        # Convert tensors to standard python floats for the final return
         return {name: val.item() for name, val in results.items()}

@@ -7,7 +7,7 @@ import os
 
 from src import config
 from src.core.params import BaseParams
-from src.data.dataset import CustomDataset
+from src.data.dataset import CustomDataset, EnsemblePathWrapper
 from src.data.transform import CustomRandomCrop, PadToMultiple, SafePhotometricRandAugment
 
 # Helper class to apply transforms to random_split subsets
@@ -150,3 +150,30 @@ class CrowdDataModule(pl.LightningDataModule):
     def train_eval_dataloader(self):
         """Used ONLY for evaluating the training set cleanly."""
         return DataLoader(self.train_eval_ds, batch_size=1, shuffle=False, num_workers=4)
+    
+    def ensemble_val_dataloader(self):
+        """Returns raw file paths and ground truths for Ensemble evaluation."""
+        # self.val_ds is your DatasetTransformWrapper. 
+        # We pass its underlying .subset to our new PathWrapper to bypass transforms.
+        path_ds = EnsemblePathWrapper(self.val_ds.subset)
+        
+        def path_collate(batch):
+            paths = [item[0] for item in batch]
+            # Stack masks if they exist
+            masks = torch.stack([item[1] for item in batch]) if batch[0][1] is not None else None
+            return paths, masks
+            
+        return DataLoader(path_ds, batch_size=1, num_workers=4, collate_fn=path_collate)
+
+    def ensemble_test_dataloader(self):
+        """Returns raw file paths and ground truths for the test set."""
+        # If test_ds is an instance of CustomDataset (not wrapped), we pass it directly
+        subset = getattr(self.test_ds, 'subset', self.test_ds)
+        path_ds = EnsemblePathWrapper(subset)
+        
+        def path_collate(batch):
+            paths = [item[0] for item in batch]
+            masks = torch.stack([item[1] for item in batch]) if batch[0][1] is not None else None
+            return paths, masks
+            
+        return DataLoader(path_ds, batch_size=1, num_workers=4, collate_fn=path_collate)

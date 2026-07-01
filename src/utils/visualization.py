@@ -221,7 +221,7 @@ def visualize_model_graph(model: torch.nn.Module, datamodule=None, sample=None):
     if sample is None:
         if datamodule is None:
             raise ValueError('Either sample or datamodule should be provided.')
-        sample = helpers.get_sample_from_dm(datamodule)
+        sample, _, _ = helpers.get_sample_from_dm(datamodule)
     # history = torchlens.log_forward_pass(model, helpers.get_sample_from_dm(datamodule))
     try: 
         graph = torchlens.visualization.show_model_graph(
