@@ -41,8 +41,7 @@ class BaseLitModel(pl.LightningModule):
         # x = self.transform(x)
         return self.model(x)
     
-
-    def training_step(self, batch, batch_idx):
+    def _shared_step(self, batch):
         x, y = batch # x: Image, y: Density Map
         # print(x.shape)
         
@@ -56,6 +55,11 @@ class BaseLitModel(pl.LightningModule):
         # We compare the SUM of the maps (the actual person count)
         pred_count = torch.sum(preds, dim=(1, 2, 3))
         gt_count = torch.sum(y, dim=(1, 2, 3))
+        
+        return loss, pred_count, gt_count
+
+    def training_step(self, batch, batch_idx):
+        loss, pred_count, gt_count = self._shared_step(batch)
         pred_count /= self.params.label_scaler
         gt_count /= self.params.label_scaler + 1e-6
         
@@ -67,34 +71,14 @@ class BaseLitModel(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        """
-        Validation step is now beautifully clean.
-        """
-        images, gt_density = batch
+        loss, pred_count, gt_count = self._shared_step(batch)
         
-        # 1. Use the reusable sliding window method
-        # (You can pass self.params.window_size if you have it in your config)
-        full_density_map = self.model.sliding_window_inference(images)
-        
-        # 2. Loss & Metrics Calculation
-        loss_pred = full_density_map.unsqueeze(1) if full_density_map.dim() == 3 else full_density_map
-        loss_gt = gt_density.unsqueeze(1) if gt_density.dim() == 3 else gt_density
-            
-        # Calculate loss with 4D tensors
-        loss = self.criterion(loss_pred, loss_gt)
-
-        B = full_density_map.shape[0]
-        pred_count = full_density_map.contiguous().view(B, -1).sum(dim=1)
-        gt_count = gt_density.contiguous().view(B, -1).sum(dim=1)
-        
-        
-        # 4. Log everything
+        # Update and log all metrics at once
         self.val_metrics(pred_count, gt_count)
         self.log_dict(self.val_metrics, on_step=False, on_epoch=True, prog_bar=True)
         self.log('epoch_idx', self.current_epoch, on_step=False, on_epoch=True)
         self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
-        
-        return loss
+        # self.log('epoch_idx', self.current_epoch, on_step=False, on_epoch=True)
     
 
     def configure_optimizers(self):

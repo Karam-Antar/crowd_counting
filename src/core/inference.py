@@ -2,58 +2,33 @@ import torch
 from src import config
 import torch.nn.functional as F
 
-from src.models.model import CrowdCounter
-
 @torch.no_grad()
-def predict(model: CrowdCounter, x: torch.Tensor, device=config.device):
-    """
-    Custom inference method that wraps our LightningModule's sliding window.
-    """
-    model.eval()
-    x = x.to(device)
-    
-    if x.dim() == 3:
-        x = x.unsqueeze(0)
-        
-    # Let the LightningModule do the sliding window math
-    density_map = model.sliding_window_inference(x)
-    total_counts = density_map.sum(dim=(1, 2))
-    
-    return total_counts, density_map
+def predict(model, x: torch.Tensor, device=config.device):
+        """
+        Custom inference method for single or batched inputs.
+        """
+        # 1. Handle dimensionality (C, H, W) -> (1, C, H, W)
+        if not isinstance(model, torch.fx.GraphModule):
+            model.eval()
+        x = x.to(device)
 
-
-
-# import torch
-# from src import config
-# import torch.nn.functional as F
-
-# @torch.no_grad()
-# def predict(model, x: torch.Tensor, device=config.device):
-#         """
-#         Custom inference method for single or batched inputs.
-#         """
-#         # 1. Handle dimensionality (C, H, W) -> (1, C, H, W)
-#         if not isinstance(model, torch.fx.GraphModule):
-#             model.eval()
-#         x = x.to(device)
-
-#         if x.dim() == 3:
-#             x = x.unsqueeze(0)
+        if x.dim() == 3:
+            x = x.unsqueeze(0)
             
-#         # 2. Forward pass
-#         density_map = model(x)
+        # 2. Forward pass
+        density_map = model(x)
         
-#         # 3. Squeeze the channel dimension IMMEDIATELY
-#         # Converts [Batch, 1, Height, Width] -> [Batch, Height, Width]
-#         if density_map.dim() == 4 and density_map.shape[1] == 1:
-#             density_map = density_map.squeeze(1)
+        # 3. Squeeze the channel dimension IMMEDIATELY
+        # Converts [Batch, 1, Height, Width] -> [Batch, Height, Width]
+        if density_map.dim() == 4 and density_map.shape[1] == 1:
+            density_map = density_map.squeeze(1)
         
-#         # 4. Ensure no negative predictions
-#         # density_map = F.softplus(density_map) 
+        # 4. Ensure no negative predictions
+        # density_map = F.softplus(density_map) 
         
-#         # 5. The total count is the sum of the density map.
-#         # Note: Because we removed the channel dimension, density_map is now 3D [B, H, W].
-#         # We sum over H (dim 1) and W (dim 2). 
-#         total_counts = density_map.sum(dim=(1, 2))
+        # 5. The total count is the sum of the density map.
+        # Note: Because we removed the channel dimension, density_map is now 3D [B, H, W].
+        # We sum over H (dim 1) and W (dim 2). 
+        total_counts = density_map.sum(dim=(1, 2))
         
-#         return total_counts, density_map
+        return total_counts, density_map
