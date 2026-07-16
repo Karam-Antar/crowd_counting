@@ -31,6 +31,7 @@ class BaseParams:
     lr: float = 0.00065
     l2_reg: Optional[float] = 1e-4
     lr_schedule: Optional[str] = None
+    ssim_weight: Optional[float] = None
     # min_lr_pct: Optional[float] = None
     monitor_metric: str = 'val_nae'
     loss_function: str = 'mse'

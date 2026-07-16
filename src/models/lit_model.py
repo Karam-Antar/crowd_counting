@@ -29,7 +29,7 @@ class BaseLitModel(pl.LightningModule):
             'nae': torchmetrics.MeanAbsolutePercentageError()
         })
         if params.loss_function == 'mse_ssim':
-            self.criterion = HybridMSESSIMLoss()
+            self.criterion = HybridMSESSIMLoss(self.params)
         elif params.loss_function == 'ssim':
             self.criterion = SSIMLoss()
         else:

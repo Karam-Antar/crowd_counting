@@ -1,6 +1,7 @@
 .venv/
 venv/
 myenv/
+datasets/
 /data
 **/lightning_logs
 trained_models/

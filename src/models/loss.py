@@ -2,8 +2,10 @@ import torch
 import torch.nn as nn
 from torchmetrics.functional.image import structural_similarity_index_measure
 
+from src.core.params import BaseParams
+
 class HybridMSESSIMLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, params: BaseParams):
         """
         Args:
             ssim_weight (float): Balances pixel intensity (MSE) vs structure (SSIM).
@@ -11,8 +13,8 @@ class HybridMSESSIMLoss(nn.Module):
         """
         super().__init__()
         self.mse = nn.MSELoss()
-        self.ssim_weight = 0.6
-        self.mse_weight = 0.4
+        self.ssim_weight = params.ssim_weight
+        self.mse_weight = 1-self.ssim_weight
 
     def forward(self, pred_density, gt_density):
         # 1. Calculate MSE (This directly optimizes your PSNR safely)
