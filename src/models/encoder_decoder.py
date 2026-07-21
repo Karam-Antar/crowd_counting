@@ -8,20 +8,34 @@ class EncoderDecoder(nn.Module):
     def __init__(self, params: BaseParams):
         super().__init__()
         self.params = params
+        
         # 1. Initialize SMP U-Net
-        # Note: SMP automatically builds the backbone, the U-Net skip connections, 
-        # and the final regression head.
-        smp_class = getattr(smp, params.model_class)  # You can easily switch to 'FPN', 'DeepLabV3', etc. by changing this string
+        # The output of this will now act as a feature extractor.
+        # Ensure params.neck_out_channels > 1 (e.g., 16 or 32) in your config.
+        smp_class = getattr(smp, params.model_class)  
         self.net = smp_class(
-            encoder_name=params.backbone,       # e.g., 'resnet34', 'efficientnet-b3', or 'tu-hrnet_w18'
+            encoder_name=params.backbone,       
             encoder_weights=params.backbone_weights,
-            decoder_attention_type=params.decoder_attention_type,           # Use attention in the decoder for better performance
+            decoder_attention_type=params.decoder_attention_type,           
             in_channels=3,
-            classes=1,                          # Output a 1-channel density map
+            classes=params.neck_out_channels, 
+        )
+
+        # --- NEW: The Dual-Branch Gating Mechanism ---
+        # Branch A: Reduces the feature map down to a 1-channel raw density prediction
+        self.density_head = nn.Sequential(
+            nn.Conv2d(params.neck_out_channels, 1, kernel_size=1),
+            nn.Softplus() # Ensures the network cannot predict negative people
         )
         
+        # Branch B: Evaluates the same features to generate a 0-to-1 background mask
+        self.attention_head = nn.Sequential(
+            nn.Conv2d(params.neck_out_channels, 1, kernel_size=1),
+            nn.Sigmoid() 
+        )
+        # ---------------------------------------------
+        
         # 2. Handle Backbone Freezing safely
-        # In SMP, the backbone is perfectly isolated inside `self.model.encoder`
         if not params.trainable_backbone:
             for param in self.net.encoder.parameters():
                 param.requires_grad = False
@@ -35,9 +49,16 @@ class EncoderDecoder(nn.Module):
                     param.requires_grad = True
 
     def forward(self, x):
-        # 1. Forward Pass
-        # SMP's U-Net naturally processes the skip connections and inherently 
-        # upsamples the output all the way back to the exact (H, W) of the input.
-        density_map = self.net(x)
+        # 1. Extract rich semantic features from SMP
+        features = self.net(x)
         
-        return density_map
+        # 2. Generate raw density and the attention mask in parallel
+        raw_density = self.density_head(features)
+        spatial_mask = self.attention_head(features)
+        
+        # 3. Apply the gate
+        # This instantly zero-outs raw density values where the mask predicts background
+        final_density = raw_density * spatial_mask
+        
+        # Returning only the final tensor prevents breaking your existing training loop
+        return final_density

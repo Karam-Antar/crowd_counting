@@ -6,7 +6,7 @@ import torch
 SEED = 42
 LABEL_SCALER = 1000
 # CLASS_NAMES = ["daisy", "dandelion", "roses", "sunflowers", "tulips"]
-MODEL_SAVE_PATH = "/teamspace/studios/this_studio/workspace/crowd_counting/trained_models"
+MODEL_SAVE_PATH = "../trained_models"
 LOG_DIR = "./logs"
 MLFLOW_DB_URL = os.getenv('MLFLOW_DB_URL', None)
 TORCH_HOME = os.getenv('TORCH_HOME')
@@ -14,12 +14,12 @@ OPTUNA_DB_URL = os.getenv('OPTUNA_DB_URL')
 DATA_HOME = '../datasets'
 SHANGHAI_PATH = f'{DATA_HOME}/ShanghaiTech/part_A'
 JHU_PATH = f'{DATA_HOME}/jhu-crowd-pp-v2'
-DATASET_PATH = JHU_PATH
+DATASET_PATH = SHANGHAI_PATH
 TRAIN_PATH = f'{DATASET_PATH}/train' if DATASET_PATH == JHU_PATH else f'{DATASET_PATH}/train_data'
 TEST_PATH = f'{DATASET_PATH}/test' if DATASET_PATH == JHU_PATH else f'{DATASET_PATH}/test_data'
-SERVE_REQUIREMENTS_PATH = '/teamspace/studios/this_studio/workspace/crowd_counting/requirements-serve.txt'
-SERVE_CODE_PATH = '/teamspace/studios/this_studio/workspace/crowd_counting/src/'
-PYFUNC_MODEL_PATH = '/teamspace/studios/this_studio/workspace/crowd_counting/src/core/pyfunc.py'
+SERVE_REQUIREMENTS_PATH = '/home/jl_fs/workspace/projects/crowd_counting/requirements-serve.txt'
+SERVE_CODE_PATH = '/home/jl_fs/workspace/projects/crowd_counting/src'
+PYFUNC_MODEL_PATH = '/home/jl_fs/workspace/projects/crowd_counting/src/core/pyfunc.py'
 PARAMS_SAVE_FILENAME = 'model_config.json'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

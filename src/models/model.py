@@ -20,7 +20,7 @@ class CrowdCounter(torch.nn.Module):
     def forward(self, x):
         density_map = self.net(x)
         # Ensure no negative values in the density map
-        density_map = F.softplus(density_map)
+        # density_map = F.softplus(density_map)
         if not self.training:
             scaler_val = float(self.params.label_scaler) 
             density_map = density_map / scaler_val
