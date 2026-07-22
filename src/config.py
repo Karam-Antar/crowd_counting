@@ -2,25 +2,47 @@ import os
 import random
 import numpy as np
 import torch
+from pathlib import Path
+from dotenv import load_dotenv, find_dotenv
+
+# 1. Locate the .env file dynamically (searches upward from current working directory)
+# This fixes the script vs. notebook execution location issue.
+env_path = find_dotenv()
+if not env_path:
+    raise FileNotFoundError("Could not find .env file. Please create one at the project root.")
+
+load_dotenv(env_path)
+
+# 2. Establish an absolute anchor for the project root based on where .env was found
+PROJECT_ROOT = Path(env_path).parent
 
 SEED = 42
 LABEL_SCALER = 1000
-# CLASS_NAMES = ["daisy", "dandelion", "roses", "sunflowers", "tulips"]
-MODEL_SAVE_PATH = "../trained_models"
-LOG_DIR = "./logs"
-MLFLOW_DB_URL = os.getenv('MLFLOW_DB_URL', None)
+
+# 3. Build paths relative to your dynamic PROJECT_ROOT
+MODEL_SAVE_PATH = PROJECT_ROOT / "trained_models"
+LOG_DIR = PROJECT_ROOT / "logs"
+
+MLFLOW_DB_URL = os.getenv('MLFLOW_DB_URL')
 TORCH_HOME = os.getenv('TORCH_HOME')
 OPTUNA_DB_URL = os.getenv('OPTUNA_DB_URL')
-DATA_HOME = '../datasets'
-SHANGHAI_PATH = f'{DATA_HOME}/ShanghaiTech/part_A'
-JHU_PATH = f'{DATA_HOME}/jhu-crowd-pp-v2'
+
+# If DATA_HOME is in the .env, use it. Otherwise, default to PROJECT_ROOT/datasets
+DATA_HOME = Path(os.getenv('DATA_HOME', PROJECT_ROOT / 'datasets'))
+
+SHANGHAI_PATH = DATA_HOME / 'ShanghaiTech' / 'part_A'
+JHU_PATH = DATA_HOME / 'jhu-crowd-pp-v2'
 DATASET_PATH = SHANGHAI_PATH
-TRAIN_PATH = f'{DATASET_PATH}/train' if DATASET_PATH == JHU_PATH else f'{DATASET_PATH}/train_data'
-TEST_PATH = f'{DATASET_PATH}/test' if DATASET_PATH == JHU_PATH else f'{DATASET_PATH}/test_data'
-SERVE_REQUIREMENTS_PATH = '/home/jl_fs/workspace/projects/crowd_counting/requirements-serve.txt'
-SERVE_CODE_PATH = '/home/jl_fs/workspace/projects/crowd_counting/src'
-PYFUNC_MODEL_PATH = '/home/jl_fs/workspace/projects/crowd_counting/src/core/pyfunc.py'
+
+TRAIN_PATH = DATASET_PATH / ('train' if DATASET_PATH == JHU_PATH else 'train_data')
+TEST_PATH = DATASET_PATH / ('test' if DATASET_PATH == JHU_PATH else 'test_data')
+
+# Replaced your hardcoded '/home/jl_fs/workspace/...' with PROJECT_ROOT
+SERVE_REQUIREMENTS_PATH = PROJECT_ROOT / 'requirements-serve.txt'
+SERVE_CODE_PATH = PROJECT_ROOT / 'src'
+PYFUNC_MODEL_PATH = SERVE_CODE_PATH / 'core' / 'pyfunc.py'
 PARAMS_SAVE_FILENAME = 'model_config.json'
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def set_seed():
