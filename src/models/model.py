@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 from src import config
 from src.core.params import BaseParams
 from src.models.hrnet.net import HRNet
@@ -16,16 +17,47 @@ class CrowdCounter(torch.nn.Module):
             self.net = HRNet(params)
         else:
             self.net = EncoderDecoder(params)
+        
+        if self.params.loss_function == 'bce_mse_ssim':
+            # --- NEW: The Dual-Branch Gating Mechanism ---
+            # Branch A: Reduces the feature map down to a 1-channel raw density prediction
+            self.density_head = nn.Sequential(
+                nn.Conv2d(params.decoder_out_channels, 1, kernel_size=1),
+                nn.Softplus() # Ensures the network cannot predict negative people
+            )
+            
+            # Branch B: Evaluates the same features to generate a 0-to-1 background mask
+            self.attention_head = nn.Sequential(
+                nn.Conv2d(params.decoder_out_channels, 1, kernel_size=1),
+                nn.Sigmoid() 
+            )
+            # ---------------------------------------------
+        
 
     def forward(self, x):
-        density_map = self.net(x)
+        features = self.net(x)
+        final_density = features
+        if self.params.loss_function == 'bce_mse_ssim':
+            # 2. Generate raw density and the attention mask in parallel
+            raw_density = self.density_head(features)
+            spatial_mask = self.attention_head(features)
+            
+            # 3. Apply the gate
+            # This instantly zero-outs raw density values where the mask predicts background
+            final_density = raw_density * spatial_mask
+            if self.training:
+                return final_density, spatial_mask
+            else:
+                scaler_val = float(self.params.label_scaler) 
+                final_density = final_density / scaler_val
+                return final_density
         # Ensure no negative values in the density map
-        # density_map = F.softplus(density_map)
+        # final_density = F.softplus(final_density)
         if not self.training:
             scaler_val = float(self.params.label_scaler) 
-            density_map = density_map / scaler_val
+            final_density = final_density / scaler_val
         
-        return density_map
+        return final_density
     
 
     def sliding_window_inference(self, images: torch.Tensor, device=config.device) -> torch.Tensor:

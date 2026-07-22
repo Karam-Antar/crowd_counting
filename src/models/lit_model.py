@@ -8,7 +8,7 @@ from torchvision.transforms import v2
 
 from src import config
 from src.core.params import BaseParams
-from src.models.loss import HybridMSESSIMLoss, SSIMLoss
+from src.models.loss import BCEMSESSIMLoss, MSESSIMLoss, SSIMLoss
 from src.models.model import CrowdCounter
 # from src.utils.registries import MODEL_REGISTRY
 
@@ -28,12 +28,15 @@ class BaseLitModel(pl.LightningModule):
             'rmse': torchmetrics.MeanSquaredError(squared=False),
             'nae': torchmetrics.MeanAbsolutePercentageError()
         })
-        if params.loss_function == 'mse_ssim':
-            self.criterion = HybridMSESSIMLoss(self.params)
-        elif params.loss_function == 'ssim':
-            self.criterion = SSIMLoss()
-        else:
-            self.criterion = torch.nn.MSELoss()
+        match self.params.loss_function:
+            case 'bce_mse_ssim':
+                self.criterion = BCEMSESSIMLoss(self.params)
+            case'mse_ssim':
+                self.criterion = MSESSIMLoss(self.params)
+            case 'ssim':
+                self.criterion = SSIMLoss()
+            case _:
+                self.criterion = torch.nn.MSELoss()
         self.train_metrics = metrics.clone(prefix='train_')
         self.val_metrics = metrics.clone(prefix='val_')
     
@@ -49,7 +52,11 @@ class BaseLitModel(pl.LightningModule):
         preds = self.model(x)
         
         # 3. Loss: Mean Squared Error is standard for Density Maps
-        loss = self.criterion(preds, y)
+        if self.params == 'bce_mse_ssim':
+            final_density, spatial_mask = preds
+            loss = self.criterion(final_density, spatial_mask, y)
+        else:
+            loss = self.criterion(preds, y)
         
         # 4. Count-based Metrics
         # We compare the SUM of the maps (the actual person count)

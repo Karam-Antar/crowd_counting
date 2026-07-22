@@ -4,7 +4,7 @@ from torchmetrics.functional.image import structural_similarity_index_measure
 
 from src.core.params import BaseParams
 
-class HybridMSESSIMLoss(nn.Module):
+class MSESSIMLoss(nn.Module):
     def __init__(self, params: BaseParams):
         """
         Args:
@@ -57,7 +57,7 @@ class SSIMLoss(nn.Module):
         return loss_ssim
 
 
-class EnhancedHybridLoss(nn.Module):
+class CountPenaltyLoss(nn.Module):
     def __init__(self, params: BaseParams):
         super().__init__()
         self.mse = nn.MSELoss()
@@ -96,5 +96,38 @@ class EnhancedHybridLoss(nn.Module):
         total_loss = (self.mse_weight * loss_mse) + \
                      (self.ssim_weight * loss_ssim) + \
                      (self.count_weight * loss_count)
+                     
+        return total_loss
+
+
+class BCEMSESSIMLoss(nn.Module):
+    def __init__(self, params: BaseParams):
+        super().__init__()
+        self.mse = nn.MSELoss()
+        self.bce = nn.BCELoss() # NEW: To train the mask
+        self.ssim_weight = params.ssim_weight
+        self.mse_weight = 1.0 - self.ssim_weight
+
+    def forward(self, pred_density, spatial_mask, gt_density):
+        # 1. Standard Density Losses
+        loss_mse = self.mse(pred_density, gt_density)
+        
+        max_val = torch.clamp(gt_density.max(), min=1e-5)
+        ssim_score = structural_similarity_index_measure(
+            pred_density, gt_density, data_range=max_val
+        )
+        loss_ssim = 1.0 - ssim_score
+        
+        # 2. Explicit Mask Supervision
+        # Create a binary mask: 1.0 where there is any density, 0.0 for pure background.
+        # (Assuming your GT is scaled by 1000, 1e-4 is a safe threshold)
+        gt_mask = (gt_density > 0).float() 
+        loss_mask = self.bce(spatial_mask, gt_mask)
+        
+        # 3. Combine
+        # The mask loss usually needs a small weight (e.g., 0.1) so it doesn't overpower MSE
+        total_loss = (self.mse_weight * loss_mse) + \
+                     (self.ssim_weight * loss_ssim) + \
+                     (0.1 * loss_mask)
                      
         return total_loss

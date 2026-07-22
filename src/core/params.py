@@ -22,6 +22,7 @@ class BaseParams:
     decoder_attention_type: Optional[str] = None
     trainable_backbone: bool = False
     neck_out_channels: Optional[int] = None
+    decoder_out_channels: Optional[int] = None
     dropout: Optional[float] = None
 
     # Training hardware/flow limits
