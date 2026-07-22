@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torchmetrics.functional.image import structural_similarity_index_measure
-
+import segmentation_models_pytorch as smp
 from src.core.params import BaseParams
 
 class MSESSIMLoss(nn.Module):
@@ -100,34 +100,71 @@ class CountPenaltyLoss(nn.Module):
         return total_loss
 
 
-class BCEMSESSIMLoss(nn.Module):
+class MaskMSESSIMLoss(nn.Module):
     def __init__(self, params: BaseParams):
         super().__init__()
         self.mse = nn.MSELoss()
-        self.bce = nn.BCELoss() # NEW: To train the mask
+        self.mask_loss_fn = smp.losses.FocalLoss(
+            mode='binary',
+            alpha=0.75, # Weight for the positive class (foreground)
+            gamma=2.0   # Focusing parameter (2.0 is standard)
+        )
         self.ssim_weight = params.ssim_weight
-        self.mse_weight = 1.0 - self.ssim_weight
+        self.mse_weight = 1-self.ssim_weight
+        self.mask_loss_weight = params.mask_loss_weight
+        # 3 learnable parameters for MSE, SSIM, and Mask
+        # Initialized to 0 (since they represent log(variance))
+        self.log_vars = nn.Parameter(torch.zeros(3))
 
-    def forward(self, pred_density, spatial_mask, gt_density):
-        # 1. Standard Density Losses
-        loss_mse = self.mse(pred_density, gt_density)
+    def forward(self, pred_density, mask_logits, gt_density):
+        raw_mse = self.mse(pred_density, gt_density) * self.mse_weight
         
         max_val = torch.clamp(gt_density.max(), min=1e-5)
-        ssim_score = structural_similarity_index_measure(
-            pred_density, gt_density, data_range=max_val
-        )
-        loss_ssim = 1.0 - ssim_score
+        ssim_score = structural_similarity_index_measure(pred_density, gt_density, data_range=max_val) * self.ssim_weight
+        raw_ssim = 1.0 - ssim_score
         
-        # 2. Explicit Mask Supervision
-        # Create a binary mask: 1.0 where there is any density, 0.0 for pure background.
-        # (Assuming your GT is scaled by 1000, 1e-4 is a safe threshold)
-        gt_mask = (gt_density > 0).float() 
-        loss_mask = self.bce(spatial_mask, gt_mask)
+        # Formula: (Loss / (2 * exp(log_var))) + (log_var / 2)
+        # The log_var term penalizes the network for just making the denominator huge
+        loss_mse = (raw_mse * torch.exp(-self.log_vars[0])) + self.log_vars[0]
+        loss_ssim = (raw_ssim * torch.exp(-self.log_vars[1])) + self.log_vars[1]
         
-        # 3. Combine
-        # The mask loss usually needs a small weight (e.g., 0.1) so it doesn't overpower MSE
-        total_loss = (self.mse_weight * loss_mse) + \
-                     (self.ssim_weight * loss_ssim) + \
-                     (0.1 * loss_mask)
-                     
+        total_loss = loss_mse + loss_ssim
+        
+        if mask_logits is not None:
+            gt_mask = (gt_density > 0).float()
+            raw_mask = self.mask_loss_fn(mask_logits, gt_mask)
+            loss_mask = (raw_mask * torch.exp(-self.log_vars[2])) + self.log_vars[2]
+            total_loss += self.mask_loss_weight * loss_mask
+            # print(f"MSE: {raw_mse.item():.4f} | SSIM: {raw_ssim.item():.4f} | Mask: {raw_mask.item():.4f}")
+            # print(f"Scaled MSE: {loss_mse.item():.4f} | Scaled SSIM: {loss_ssim.item():.4f} | Scaled Mask: {loss_mask.item():.4f}")
+            # print()
+            
         return total_loss
+
+
+
+class SpatiallyWeightedLoss(nn.Module):
+    def __init__(self, params: BaseParams):
+        super().__init__()
+        # reduction='none' allows us to weight pixels individually
+        self.mse = nn.MSELoss(reduction='none')
+        self.ssim_weight = params.ssim_weight
+        self.mse_weight = 1.0 - self.ssim_weight
+        self.alpha = 3.0   # Background penalty multiplier
+        self.gamma = 0.1   # Decay factor for density
+
+    def forward(self, pred_density, gt_density):
+        # 1. Pixel-wise MSE
+        raw_mse = self.mse(pred_density, gt_density)
+        
+        # 2. Continuous weight map: Empty areas get higher weight (alpha), 
+        # dense crowd areas naturally decay down to a weight of 1.0
+        weight_map = 1.0 + (self.alpha - 1.0) * torch.exp(-self.gamma * gt_density)
+        
+        loss_mse = torch.mean(raw_mse * weight_map)
+        
+        # 3. SSIM Loss
+        max_val = torch.clamp(gt_density.max(), min=1e-5)
+        loss_ssim = 1.0 - structural_similarity_index_measure(pred_density, gt_density, data_range=max_val)
+        
+        return (self.mse_weight * loss_mse) + (self.ssim_weight * loss_ssim)

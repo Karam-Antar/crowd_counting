@@ -8,7 +8,7 @@ from torchvision.transforms import v2
 
 from src import config
 from src.core.params import BaseParams
-from src.models.loss import BCEMSESSIMLoss, MSESSIMLoss, SSIMLoss
+from src.models.loss import MaskMSESSIMLoss, MSESSIMLoss, SSIMLoss, CountPenaltyLoss, SpatiallyWeightedLoss
 from src.models.model import CrowdCounter
 # from src.utils.registries import MODEL_REGISTRY
 
@@ -28,17 +28,27 @@ class BaseLitModel(pl.LightningModule):
             'rmse': torchmetrics.MeanSquaredError(squared=False),
             'nae': torchmetrics.MeanAbsolutePercentageError()
         })
+        mask_metrics = torchmetrics.MetricCollection({
+            'iou': torchmetrics.classification.BinaryJaccardIndex(),          
+            'dice': torchmetrics.classification.BinaryF1Score()     
+        })
+        self.train_metrics = metrics.clone(prefix='train_')
+        self.val_metrics = metrics.clone(prefix='val_')
+        self.train_mask_metrics = mask_metrics.clone(prefix='train_mask_')
+        self.val_mask_metrics = mask_metrics.clone(prefix='val_mask_')
         match self.params.loss_function:
-            case 'bce_mse_ssim':
-                self.criterion = BCEMSESSIMLoss(self.params)
+            case 'mask_mse_ssim':
+                self.criterion = MaskMSESSIMLoss(self.params)
+            case 'count_penalty':
+                self.criterion = CountPenaltyLoss(self.params)
+            case 'spatially_weighted_loss':
+                self.criterion = SpatiallyWeightedLoss(self.params)
             case'mse_ssim':
                 self.criterion = MSESSIMLoss(self.params)
             case 'ssim':
                 self.criterion = SSIMLoss()
             case _:
                 self.criterion = torch.nn.MSELoss()
-        self.train_metrics = metrics.clone(prefix='train_')
-        self.val_metrics = metrics.clone(prefix='val_')
     
     def forward(self, x):
         # x = self.transform(x)
@@ -46,46 +56,62 @@ class BaseLitModel(pl.LightningModule):
     
     def _shared_step(self, batch):
         x, y = batch # x: Image, y: Density Map
-        # print(x.shape)
         
-        # 2. Forward Pass
-        preds = self.model(x)
+        # Initialize to None so we don't break runs without the mask
+        mask_probs = None
+        gt_mask = None
         
-        # 3. Loss: Mean Squared Error is standard for Density Maps
-        if self.params == 'bce_mse_ssim':
-            final_density, spatial_mask = preds
-            loss = self.criterion(final_density, spatial_mask, y)
+        # Forward Pass
+        if self.params.loss_function == 'mask_mse_ssim':
+            pred_density, raw_density, mask_logits = self.model(x, return_mask=True)
+            loss = self.criterion(raw_density, mask_logits, y)
+            
+            # Prepare segmentation targets for metrics
+            mask_probs = torch.sigmoid(mask_logits)
+            gt_mask = (y > 0).float()
         else:
-            loss = self.criterion(preds, y)
-        
-        # 4. Count-based Metrics
-        # We compare the SUM of the maps (the actual person count)
-        pred_count = torch.sum(preds, dim=(1, 2, 3))
+            pred_density = self.model(x, return_mask=False)
+            loss = self.criterion(pred_density, y)
+            
+        # Count-based Metrics
+        pred_count = torch.sum(pred_density, dim=(1, 2, 3))
         gt_count = torch.sum(y, dim=(1, 2, 3))
         
-        return loss, pred_count, gt_count
+        # Return the new mask variables
+        return loss, pred_count, gt_count, mask_probs, gt_mask
+
 
     def training_step(self, batch, batch_idx):
-        loss, pred_count, gt_count = self._shared_step(batch)
+        loss, pred_count, gt_count, mask_probs, gt_mask = self._shared_step(batch)
+        
         pred_count /= self.params.label_scaler
         gt_count /= self.params.label_scaler + 1e-6
         
-        # Update and log all metrics at once
-        output = self.train_metrics(pred_count, gt_count)
+        # Update and log count metrics
+        self.train_metrics(pred_count, gt_count)
         self.log_dict(self.train_metrics, on_step=False, on_epoch=True, prog_bar=True)
         self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
         
+        # Update and log mask metrics (only if they exist)
+        if mask_probs is not None and gt_mask is not None:
+            self.train_mask_metrics(mask_probs, gt_mask)
+            self.log_dict(self.train_mask_metrics, on_step=False, on_epoch=True, prog_bar=True)
+            
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss, pred_count, gt_count = self._shared_step(batch)
+        loss, pred_count, gt_count, mask_probs, gt_mask = self._shared_step(batch)
         
-        # Update and log all metrics at once
+        # Update and log count metrics
         self.val_metrics(pred_count, gt_count)
         self.log_dict(self.val_metrics, on_step=False, on_epoch=True, prog_bar=True)
         self.log('epoch_idx', self.current_epoch, on_step=False, on_epoch=True)
         self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
-        # self.log('epoch_idx', self.current_epoch, on_step=False, on_epoch=True)
+        
+        # Update and log mask metrics
+        if mask_probs is not None and gt_mask is not None:
+            self.val_mask_metrics(mask_probs, gt_mask)
+            self.log_dict(self.val_mask_metrics, on_step=False, on_epoch=True, prog_bar=True)
     
 
     def configure_optimizers(self):

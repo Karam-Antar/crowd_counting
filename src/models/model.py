@@ -12,53 +12,79 @@ class CrowdCounter(torch.nn.Module):
     def __init__(self, params: BaseParams):
         super().__init__()
         self.params = params
+        self.threshold = self.params.seg_threshold
         # 1. Initialize Backbone
         if params.backbone.startswith('hrnet'):
             self.net = HRNet(params)
         else:
             self.net = EncoderDecoder(params)
         
-        if self.params.loss_function == 'bce_mse_ssim':
-            # --- NEW: The Dual-Branch Gating Mechanism ---
-            # Branch A: Reduces the feature map down to a 1-channel raw density prediction
+        if self.params.loss_function == 'mask_mse_ssim':
+           # A good rule of thumb is to halve or keep the channel count of the backbone's output
+            mid_channels = params.decoder_out_channels // 2 
+
+            # Branch A: Density (Regression)
             self.density_head = nn.Sequential(
-                nn.Conv2d(params.decoder_out_channels, 1, kernel_size=1),
-                nn.Softplus() # Ensures the network cannot predict negative people
+                # 1. Private spatial processing for regression
+                nn.Conv2d(params.decoder_out_channels, mid_channels, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True),
+                # 2. Final linear projection
+                nn.Conv2d(mid_channels, 1, kernel_size=1),
+                nn.ReLU() # Ensures no negative density
             )
-            
-            # Branch B: Evaluates the same features to generate a 0-to-1 background mask
+
+            # Branch B: Attention Mask (Binary Classification)
             self.attention_head = nn.Sequential(
-                nn.Conv2d(params.decoder_out_channels, 1, kernel_size=1),
-                nn.Sigmoid() 
+                # 1. Private spatial processing for edge/boundary detection
+                nn.Conv2d(params.decoder_out_channels, mid_channels, kernel_size=3, padding=1),
+                nn.ReLU(inplace=True),
+                # 2. Final linear projection
+                nn.Conv2d(mid_channels, 1, kernel_size=1)
             )
+
+            # Initialize the final bias of the attention head (index 2 now, because of the mid-layer)
+            nn.init.constant_(self.attention_head[2].bias, 1.3)
             # ---------------------------------------------
         
 
-    def forward(self, x):
+    def forward(self, x, return_mask=False):
         features = self.net(x)
-        final_density = features
-        if self.params.loss_function == 'bce_mse_ssim':
-            # 2. Generate raw density and the attention mask in parallel
-            raw_density = self.density_head(features)
-            spatial_mask = self.attention_head(features)
-            
-            # 3. Apply the gate
-            # This instantly zero-outs raw density values where the mask predicts background
-            final_density = raw_density * spatial_mask
-            if self.training:
-                return final_density, spatial_mask
-            else:
-                scaler_val = float(self.params.label_scaler) 
-                final_density = final_density / scaler_val
-                return final_density
-        # Ensure no negative values in the density map
-        # final_density = F.softplus(final_density)
+        
+        if self.params.loss_function != 'mask_mse_ssim':
+            final_density = features
+            if not self.training:
+                final_density = final_density / float(self.params.label_scaler)
+            return final_density
+
+        # 1. Raw outputs (CRITICAL: apply ReLU to density so it can't be negative)
+        raw_density = self.density_head(features)
+        mask_logits = self.attention_head(features) 
+        
+        # 2. Gate the density with the mask for the final output
+        spatial_mask = torch.sigmoid(mask_logits)
+        # Detach isn't strictly necessary since we evaluate loss on the raw outputs, 
+        # but we can leave it to be safe.
+        spatial_mask_binary = (spatial_mask > self.threshold).float()
+
+        # 3. Multiply by the binary mask
+        final_density = raw_density.detach() * spatial_mask_binary.detach()
+        
+        # 3. Handle Scaling specifically for Evaluation/Inference
         if not self.training:
             scaler_val = float(self.params.label_scaler) 
+            # Scale down the gated density for accurate metric counting
             final_density = final_density / scaler_val
+            
+            # NOTE: If your validation dataset provides 'y' that is already scaled DOWN, 
+            # you also need to divide raw_density by scaler_val here so the validation loss is correct.
+            # raw_density = raw_density / scaler_val
+
+        # 4. Return routing
+        if self.training or return_mask:
+            return final_density, raw_density, mask_logits
         
         return final_density
-    
+        
 
     def sliding_window_inference(self, images: torch.Tensor, device=config.device) -> torch.Tensor:
         """
