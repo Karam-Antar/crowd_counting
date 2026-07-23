@@ -66,7 +66,7 @@ def get_existing_code_files():
     absolute_files = []
     for f in git_output.splitlines():
         full_path = (git_root_path / f).resolve()
-        if full_path.exists():
+        if full_path.exists() and full_path.suffix != '.ipynb':
             absolute_files.append(full_path)
             
     return absolute_files, git_root_path

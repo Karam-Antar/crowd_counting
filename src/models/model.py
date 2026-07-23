@@ -22,12 +22,13 @@ class CrowdCounter(torch.nn.Module):
         if self.params.loss_function == 'mask_mse_ssim':
            # A good rule of thumb is to halve or keep the channel count of the backbone's output
             mid_channels = params.decoder_out_channels // 2 
-
+            dropout_rate = self.params.dropout or 0.0
             # Branch A: Density (Regression)
             self.density_head = nn.Sequential(
                 # 1. Private spatial processing for regression
                 nn.Conv2d(params.decoder_out_channels, mid_channels, kernel_size=3, padding=1),
                 nn.ReLU(inplace=True),
+                nn.Dropout2d(p=dropout_rate),
                 # 2. Final linear projection
                 nn.Conv2d(mid_channels, 1, kernel_size=1),
                 nn.ReLU() # Ensures no negative density
@@ -38,12 +39,13 @@ class CrowdCounter(torch.nn.Module):
                 # 1. Private spatial processing for edge/boundary detection
                 nn.Conv2d(params.decoder_out_channels, mid_channels, kernel_size=3, padding=1),
                 nn.ReLU(inplace=True),
+                nn.Dropout2d(p=dropout_rate),
                 # 2. Final linear projection
                 nn.Conv2d(mid_channels, 1, kernel_size=1)
             )
 
             # Initialize the final bias of the attention head (index 2 now, because of the mid-layer)
-            nn.init.constant_(self.attention_head[2].bias, 1.3)
+            nn.init.constant_(self.attention_head[3].bias, 1.2)
             # ---------------------------------------------
         
 

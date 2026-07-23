@@ -44,15 +44,18 @@ class CrowdDataModule(pl.LightningDataModule):
             v2.ToImage(),                                           # Convert PIL to Tensor
             CustomRandomCrop(params.crop_size) if params.crop_size else v2.Identity(), # Applied to BOTH
             v2.RandomHorizontalFlip(p=0.5),
+            # v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1), # Applied ONLY to image
+            # v2.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 2.0)),
+            # v2.RandomAdjustSharpness(sharpness_factor=1.3, p=0.5),
             PadToMultiple(params.padding_multiple)                                       # Applied to BOTH
         ])
         
         self.train_image_augs = v2.Compose([
             v2.ToDtype(torch.float32, scale=True),                  # Applied ONLY to Image
-            SafePhotometricRandAugment(
-                num_ops=params.num_ops or 4, 
-                magnitude=int(params.aug_factor)
-            ) if params.aug_factor else v2.Identity(),
+            # SafePhotometricRandAugment(
+            #     num_ops=params.num_ops or 4, 
+            #     magnitude=int(params.aug_factor)
+            # ) if params.aug_factor else v2.Identity(),
             v2.Normalize(mean=mean, std=std)                        # Applied ONLY to Image
         ])
 
@@ -100,7 +103,7 @@ class CrowdDataModule(pl.LightningDataModule):
             # 1. Always load the training set
             full_train_ds = CustomDataset(
                 img_dir=os.path.join(train_path, "images"),
-                h5_dir=os.path.join(train_path, "ground-truth-h5")
+                gt_dir=os.path.join(train_path, "ground-truth-npy")
             )
             
             # 2. Check for the existence of the 'val' folder
@@ -109,7 +112,7 @@ class CrowdDataModule(pl.LightningDataModule):
                 # Load validation dataset from folder
                 val_subset = CustomDataset(
                     img_dir=os.path.join(val_path, "images"),
-                    h5_dir=os.path.join(val_path, "ground-truth-h5")
+                    gt_dir=os.path.join(val_path, "ground-truth-npy")
                 )
                 train_subset = full_train_ds
             else:
@@ -132,23 +135,23 @@ class CrowdDataModule(pl.LightningDataModule):
                 return 
             self.test_ds = CustomDataset(
                 img_dir=os.path.join(test_path, "images"),
-                h5_dir=os.path.join(test_path, "ground-truth-h5"),
+                gt_dir=os.path.join(test_path, "ground-truth-npy"),
                 transform=self.apply_test_transforms # Passes the custom function down
             )
 
     def train_dataloader(self):
-        return DataLoader(self.train_ds, batch_size=self.params.batch_size, shuffle=True, num_workers=4, pin_memory=True)
+        return DataLoader(self.train_ds, batch_size=self.params.batch_size, shuffle=True, num_workers=8, pin_memory=True)
 
     def val_dataloader(self):
         # BS=1 is standard for crowd counting validation on full images
-        return DataLoader(self.val_ds, batch_size=self.params.val_batch_size, num_workers=4, pin_memory=True, collate_fn=DynamicPadCollate(self.params.padding_multiple))
+        return DataLoader(self.val_ds, batch_size=self.params.val_batch_size or 4, num_workers=12, pin_memory=True, collate_fn=DynamicPadCollate(self.params.padding_multiple))
 
     def test_dataloader(self):
-        return DataLoader(self.test_ds or self.val_ds, batch_size=self.params.val_batch_size, num_workers=4, pin_memory=True, collate_fn=DynamicPadCollate(self.params.padding_multiple))
+        return DataLoader(self.test_ds or self.val_ds, batch_size=self.params.val_batch_size or 4, num_workers=4, pin_memory=True, collate_fn=DynamicPadCollate(self.params.padding_multiple))
     
     def train_eval_dataloader(self):
         """Used ONLY for evaluating the training set cleanly."""
-        return DataLoader(self.train_eval_ds, batch_size=self.params.val_batch_size, shuffle=False, num_workers=4, collate_fn=DynamicPadCollate(self.params.padding_multiple))
+        return DataLoader(self.train_eval_ds, batch_size=self.params.val_batch_size or 4, shuffle=False, num_workers=12, collate_fn=DynamicPadCollate(self.params.padding_multiple))
     
     def ensemble_val_dataloader(self):
         """Returns raw file paths and ground truths for Ensemble evaluation."""

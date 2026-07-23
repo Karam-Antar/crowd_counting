@@ -22,6 +22,7 @@ class BaseLitModel(pl.LightningModule):
         self.params = params
         if getattr(self, 'model', None) is None:
             self.model = CrowdCounter(self.params)
+            # self.model = torch.compile(self.model, mode='default')
 
         # Shared Metrics
         metrics = torchmetrics.MetricCollection({
@@ -127,8 +128,8 @@ class BaseLitModel(pl.LightningModule):
                 unpadded_gt_masks.append(real_gt_mask.flatten())
                 
         # 4. Stack counts and scale
-        pred_count_tensor = torch.stack(pred_counts) / self.params.label_scaler
-        gt_count_tensor = torch.stack(gt_counts) / (self.params.label_scaler + 1e-6)
+        pred_count_tensor = torch.stack(pred_counts)
+        gt_count_tensor = torch.stack(gt_counts)
         
         # 5. Log Validation Count Metrics & Loss
         self.val_metrics(pred_count_tensor, gt_count_tensor)

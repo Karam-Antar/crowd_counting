@@ -103,7 +103,7 @@ class CountPenaltyLoss(nn.Module):
 class MaskMSESSIMLoss(nn.Module):
     def __init__(self, params: BaseParams):
         super().__init__()
-        self.mse = nn.MSELoss()
+        self.mse = nn.HuberLoss(delta=1.0)
         self.mask_loss_fn = smp.losses.FocalLoss(
             mode='binary',
             alpha=0.75, # Weight for the positive class (foreground)
