@@ -118,3 +118,46 @@ class SafePhotometricRandAugment(torch.nn.Module):
             
         # 4. Post-clamp guard: Prevent any pixel overflow from reaching the network
         return torch.clamp(img, 1e-6, 1.0)
+
+
+class DynamicPadCollate:
+    def __init__(self, multiple):
+        self.multiple = multiple
+        
+    def __call__(self, batch):
+        B = len(batch)
+        C = batch[0][0].shape[0]  
+        stride = self.multiple
+        
+        # 1. Get original sizes
+        original_sizes = torch.tensor([(item[0].shape[1], item[0].shape[2]) for item in batch])
+        
+        # 2. Find max H and max W across the batch
+        max_h, max_w = original_sizes.max(dim=0).values.tolist()
+        
+        # 3. Adjust max_h and max_w to be multiples of the stride (32)
+        # Math trick to round up to the nearest multiple of 'stride'
+        pad_h = ((max_h + stride - 1) // stride) * stride
+        pad_w = ((max_w + stride - 1) // stride) * stride
+        
+        # 4. Pre-allocate tensors using the stride-padded dimensions
+        batched_images = torch.zeros((B, C, pad_h, pad_w), dtype=batch[0][0].dtype)
+        
+        mask_shape = batch[0][1].shape
+        if len(mask_shape) == 3:  
+            batched_masks = torch.zeros((B, mask_shape[0], pad_h, pad_w), dtype=batch[0][1].dtype)
+        else:                     
+            batched_masks = torch.zeros((B, pad_h, pad_w), dtype=batch[0][1].dtype)
+
+        # 5. Drop images into the top-left corner
+        for i, (img, mask) in enumerate(batch):
+            h, w = original_sizes[i].tolist()
+            
+            batched_images[i, :, :h, :w] = img
+            
+            if len(mask_shape) == 3:
+                batched_masks[i, :, :h, :w] = mask
+            else:
+                batched_masks[i, :h, :w] = mask
+                
+        return batched_images, batched_masks, original_sizes.tolist()

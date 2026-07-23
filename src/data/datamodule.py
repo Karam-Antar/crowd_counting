@@ -8,7 +8,7 @@ import os
 from src import config
 from src.core.params import BaseParams
 from src.data.dataset import CustomDataset, EnsemblePathWrapper
-from src.data.transform import CustomRandomCrop, PadToMultiple, SafePhotometricRandAugment
+from src.data.transform import CustomRandomCrop, PadToMultiple, SafePhotometricRandAugment, DynamicPadCollate
 
 # Helper class to apply transforms to random_split subsets
 class DatasetTransformWrapper(torch.utils.data.Dataset):
@@ -61,7 +61,6 @@ class CrowdDataModule(pl.LightningDataModule):
         # ==========================================
         self.test_joint_augs = v2.Compose([
             v2.ToImage(),
-            PadToMultiple(params.padding_multiple)
         ])
         
         self.test_image_augs = v2.Compose([
@@ -142,14 +141,14 @@ class CrowdDataModule(pl.LightningDataModule):
 
     def val_dataloader(self):
         # BS=1 is standard for crowd counting validation on full images
-        return DataLoader(self.val_ds, batch_size=1, num_workers=4, pin_memory=True)
+        return DataLoader(self.val_ds, batch_size=self.params.val_batch_size, num_workers=4, pin_memory=True, collate_fn=DynamicPadCollate(self.params.padding_multiple))
 
     def test_dataloader(self):
-        return DataLoader(self.test_ds or self.val_ds, batch_size=1, num_workers=4, pin_memory=True)
+        return DataLoader(self.test_ds or self.val_ds, batch_size=self.params.val_batch_size, num_workers=4, pin_memory=True, collate_fn=DynamicPadCollate(self.params.padding_multiple))
     
     def train_eval_dataloader(self):
         """Used ONLY for evaluating the training set cleanly."""
-        return DataLoader(self.train_eval_ds, batch_size=1, shuffle=False, num_workers=4)
+        return DataLoader(self.train_eval_ds, batch_size=self.params.val_batch_size, shuffle=False, num_workers=4, collate_fn=DynamicPadCollate(self.params.padding_multiple))
     
     def ensemble_val_dataloader(self):
         """Returns raw file paths and ground truths for Ensemble evaluation."""

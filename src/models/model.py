@@ -136,3 +136,34 @@ class CrowdCounter(torch.nn.Module):
             full_density_map = full_density_map[:, :H, :W]
             
         return full_density_map
+
+
+# mid_channels = params.decoder_out_channels // 2 
+# dropout_rate = self.params.dropout # Keep it low (20%) to regularize without starving the network
+
+# # Branch A: Density (Regression)
+# self.density_head = nn.Sequential(
+#     # 1. Dilation increases receptive field for scale variation
+#     nn.Conv2d(params.decoder_out_channels, mid_channels, kernel_size=3, padding=2, dilation=2),
+#     nn.BatchNorm2d(mid_channels),    # Stabilizes gradients
+#     nn.ReLU(inplace=True),
+#     nn.Dropout2d(p=dropout_rate),    # Anti-overfitting
+#     # 2. Final linear projection
+#     nn.Conv2d(mid_channels, 1, kernel_size=1),
+#     nn.ReLU() 
+# )
+
+# # Branch B: Attention Mask (Binary Classification)
+# self.attention_head = nn.Sequential(
+#     # 1. Standard convolution for sharp boundary detection
+#     nn.Conv2d(params.decoder_out_channels, mid_channels, kernel_size=3, padding=1),
+#     nn.BatchNorm2d(mid_channels),    # Stabilizes gradients
+#     nn.ReLU(inplace=True),
+#     nn.Dropout2d(p=dropout_rate),    # Anti-overfitting
+#     # 2. Final linear projection
+#     nn.Conv2d(mid_channels, 1, kernel_size=1)
+# )
+
+# # Initialize the final bias of the attention head 
+# # (Index is now 4 because of the added BN and Dropout layers: Conv(0)->BN(1)->ReLU(2)->Drop(3)->Conv(4))
+# nn.init.constant_(self.attention_head[4].bias, 1.3)

@@ -71,7 +71,6 @@ class ProductionPyTorchWrapper(mlflow.pyfunc.PythonModel):
         # 4. Run inference safely
         # Model returns two outputs: a float/vector score and a matrix/tensor density map
         counts, density_maps = inference.predict(self.model, img, device=self.device)
-        density_maps = UnpadToOriginal()(density_maps, original_shape=(h, w))
         # 5. Post-processing: Move off GPU and convert back to standard NumPy arrays
         counts = counts.cpu().numpy()
         density_maps = density_maps.cpu().numpy()

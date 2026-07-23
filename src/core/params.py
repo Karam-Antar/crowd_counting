@@ -27,6 +27,7 @@ class BaseParams:
 
     # Training hardware/flow limits
     batch_size: int = 16
+    val_batch_size: int = 32
 
     # Optimization & Regularization
     lr: float = 0.00065

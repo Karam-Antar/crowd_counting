@@ -8,6 +8,7 @@ from torchvision.transforms import v2
 
 from src import config
 from src.core.params import BaseParams
+from src.data.transform import UnpadToOriginal
 from src.models.loss import MaskMSESSIMLoss, MSESSIMLoss, SSIMLoss, CountPenaltyLoss, SpatiallyWeightedLoss
 from src.models.model import CrowdCounter
 # from src.utils.registries import MODEL_REGISTRY
@@ -36,6 +37,7 @@ class BaseLitModel(pl.LightningModule):
         self.val_metrics = metrics.clone(prefix='val_')
         self.train_mask_metrics = mask_metrics.clone(prefix='train_mask_')
         self.val_mask_metrics = mask_metrics.clone(prefix='val_mask_')
+        self.unpad = UnpadToOriginal()
         match self.params.loss_function:
             case 'mask_mse_ssim':
                 self.criterion = MaskMSESSIMLoss(self.params)
@@ -54,10 +56,8 @@ class BaseLitModel(pl.LightningModule):
         # x = self.transform(x)
         return self.model(x)
     
-    def _shared_step(self, batch):
-        x, y = batch # x: Image, y: Density Map
-        
-        # Initialize to None so we don't break runs without the mask
+    def _shared_step(self, x, y):
+        """Handles the forward pass, loss computation, and mask preparation for both train and val."""
         mask_probs = None
         gt_mask = None
         
@@ -66,33 +66,30 @@ class BaseLitModel(pl.LightningModule):
             pred_density, raw_density, mask_logits = self.model(x, return_mask=True)
             loss = self.criterion(raw_density, mask_logits, y)
             
-            # Prepare segmentation targets for metrics
             mask_probs = torch.sigmoid(mask_logits)
             gt_mask = (y > 0).float()
         else:
             pred_density = self.model(x, return_mask=False)
             loss = self.criterion(pred_density, y)
             
-        # Count-based Metrics
-        pred_count = torch.sum(pred_density, dim=(1, 2, 3))
-        gt_count = torch.sum(y, dim=(1, 2, 3))
-        
-        # Return the new mask variables
-        return loss, pred_count, gt_count, mask_probs, gt_mask
-
+        return loss, pred_density, mask_probs, gt_mask
 
     def training_step(self, batch, batch_idx):
-        loss, pred_count, gt_count, mask_probs, gt_mask = self._shared_step(batch)
+        # 1. Unpack standard training batch (Cropped uniformly, no sizes passed)
+        x, y = batch 
         
-        pred_count /= self.params.label_scaler
-        gt_count /= self.params.label_scaler + 1e-6
+        # 2. Run shared logic
+        loss, pred_density, mask_probs, gt_mask = self._shared_step(x, y)
+            
+        # 3. Sum counts directly (No unpadding needed for training)
+        pred_count = torch.sum(pred_density, dim=(1, 2, 3)) / self.params.label_scaler
+        gt_count = torch.sum(y, dim=(1, 2, 3)) / (self.params.label_scaler + 1e-6)
         
-        # Update and log count metrics
+        # 4. Log Training Metrics
         self.train_metrics(pred_count, gt_count)
         self.log_dict(self.train_metrics, on_step=False, on_epoch=True, prog_bar=True)
         self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
         
-        # Update and log mask metrics (only if they exist)
         if mask_probs is not None and gt_mask is not None:
             self.train_mask_metrics(mask_probs, gt_mask)
             self.log_dict(self.train_mask_metrics, on_step=False, on_epoch=True, prog_bar=True)
@@ -100,19 +97,52 @@ class BaseLitModel(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss, pred_count, gt_count, mask_probs, gt_mask = self._shared_step(batch)
+        # 1. Unpack dynamic batch including original sizes from collate_fn
+        x, y, orig_sizes = batch
         
-        # Update and log count metrics
-        self.val_metrics(pred_count, gt_count)
+        # 2. Run shared logic (Loss is computed safely on padded tensors)
+        loss, pred_density, mask_probs, gt_mask = self._shared_step(x, y)
+
+        # 3. Unpad outputs for accurate evaluation
+        pred_counts = []
+        gt_counts = []
+        
+        unpadded_mask_probs = []
+        unpadded_gt_masks = []
+        
+        for i in range(x.size(0)):
+            # Crop density maps back to real image dimensions
+            real_pred = self.unpad(pred_density[i], orig_sizes[i])
+            real_gt = self.unpad(y[i], orig_sizes[i])
+            
+            pred_counts.append(torch.sum(real_pred))
+            gt_counts.append(torch.sum(real_gt))
+            
+            # Crop masks back to real dimensions to avoid calculating IoU on padded space
+            if mask_probs is not None:
+                real_mask_prob = self.unpad(mask_probs[i], orig_sizes[i])
+                real_gt_mask = self.unpad(gt_mask[i], orig_sizes[i])
+                
+                unpadded_mask_probs.append(real_mask_prob.flatten())
+                unpadded_gt_masks.append(real_gt_mask.flatten())
+                
+        # 4. Stack counts and scale
+        pred_count_tensor = torch.stack(pred_counts) / self.params.label_scaler
+        gt_count_tensor = torch.stack(gt_counts) / (self.params.label_scaler + 1e-6)
+        
+        # 5. Log Validation Count Metrics & Loss
+        self.val_metrics(pred_count_tensor, gt_count_tensor)
         self.log_dict(self.val_metrics, on_step=False, on_epoch=True, prog_bar=True)
-        self.log('epoch_idx', self.current_epoch, on_step=False, on_epoch=True)
         self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log('epoch_idx', float(self.current_epoch), on_step=False, on_epoch=True)
         
-        # Update and log mask metrics
-        if mask_probs is not None and gt_mask is not None:
-            self.val_mask_metrics(mask_probs, gt_mask)
+        # 6. Log Validation Mask Metrics
+        if mask_probs is not None:
+            batch_mask_probs = torch.cat(unpadded_mask_probs)
+            batch_gt_masks = torch.cat(unpadded_gt_masks)
+            
+            self.val_mask_metrics(batch_mask_probs, batch_gt_masks)
             self.log_dict(self.val_mask_metrics, on_step=False, on_epoch=True, prog_bar=True)
-    
 
     def configure_optimizers(self):
         # 1. Group parameters

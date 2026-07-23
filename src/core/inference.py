@@ -2,6 +2,8 @@ import torch
 from src import config
 import torch.nn.functional as F
 
+from src.data.transform import UnpadToOriginal
+
 @torch.no_grad()
 def predict(model, x: torch.Tensor, device=config.device):
         """
@@ -28,7 +30,9 @@ def predict(model, x: torch.Tensor, device=config.device):
         
         # 5. The total count is the sum of the density map.
         # Note: Because we removed the channel dimension, density_map is now 3D [B, H, W].
-        # We sum over H (dim 1) and W (dim 2). 
+        # We sum over H (dim 1) and W (dim 2).
+        h, w = x.shape[-2:]
+        density_maps = UnpadToOriginal()(density_maps, original_shape=(h, w))
         total_counts = density_map.sum(dim=(1, 2))
         
         return total_counts, density_map
