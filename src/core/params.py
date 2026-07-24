@@ -35,6 +35,7 @@ class BaseParams:
     lr_schedule: Optional[str] = None
     ssim_weight: Optional[float] = None
     mask_loss_weight: Optional[float] = None
+    huber_delta: Optional[float] = None
     seg_threshold: Optional[float] = None
     # min_lr_pct: Optional[float] = None
     monitor_metric: str = 'val_nae'

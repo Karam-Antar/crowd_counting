@@ -36,16 +36,15 @@ class CrowdCounter(torch.nn.Module):
 
             # Branch B: Attention Mask (Binary Classification)
             self.attention_head = nn.Sequential(
-                # 1. Private spatial processing for edge/boundary detection
                 nn.Conv2d(params.decoder_out_channels, mid_channels, kernel_size=3, padding=1),
                 nn.ReLU(inplace=True),
                 nn.Dropout2d(p=dropout_rate),
                 # 2. Final linear projection
-                nn.Conv2d(mid_channels, 1, kernel_size=1)
+                nn.Conv2d(mid_channels, 1, kernel_size=1),
             )
 
             # Initialize the final bias of the attention head (index 2 now, because of the mid-layer)
-            nn.init.constant_(self.attention_head[3].bias, 1.2)
+            nn.init.constant_(self.attention_head[-1].bias, 1.2)
             # ---------------------------------------------
         
 

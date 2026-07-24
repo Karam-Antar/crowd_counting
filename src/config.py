@@ -32,7 +32,7 @@ DATA_HOME = Path(os.getenv('DATA_HOME', PROJECT_ROOT / 'datasets'))
 
 SHANGHAI_PATH = DATA_HOME / 'ShanghaiTech' / 'part_A'
 JHU_PATH = DATA_HOME / 'jhu-crowd-pp-v2'
-DATASET_PATH = SHANGHAI_PATH
+DATASET_PATH = JHU_PATH
 
 TRAIN_PATH = DATASET_PATH / ('train' if DATASET_PATH == JHU_PATH else 'train_data')
 TEST_PATH = DATASET_PATH / ('test' if DATASET_PATH == JHU_PATH else 'test_data')
