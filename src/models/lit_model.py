@@ -64,8 +64,8 @@ class BaseLitModel(pl.LightningModule):
         
         # Forward Pass
         if self.params.loss_function == 'mask_mse_ssim':
-            pred_density, raw_density, mask_logits = self.model(x, return_mask=True)
-            loss = self.criterion(raw_density, mask_logits, y)
+            pred_density, mask_logits = self.model(x, return_mask=True)
+            loss = self.criterion(pred_density, mask_logits, y)
             
             mask_probs = torch.sigmoid(mask_logits)
             gt_mask = (y > 0).float()
