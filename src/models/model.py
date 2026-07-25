@@ -20,31 +20,44 @@ class CrowdCounter(torch.nn.Module):
             self.net = EncoderDecoder(params)
         
         if self.params.loss_function == 'mask_mse_ssim':
-           # A good rule of thumb is to halve or keep the channel count of the backbone's output
-            mid_channels = params.decoder_out_channels // 2 
+            # A good rule of thumb is to halve or keep the channel count of the backbone's output
+            mid_channels = self.params.decoder_out_channels // 2 
             dropout_rate = self.params.dropout or 0.0
-            # Branch A: Density (Regression)
-            self.density_head = nn.Sequential(
-                # 1. Private spatial processing for regression
-                nn.Conv2d(params.decoder_out_channels, mid_channels, kernel_size=3, padding=1),
+            
+            # --- STAGE 1: DENSITY FEATURE EXTRACTOR ---
+            self.density_features = nn.Sequential(
+                nn.Conv2d(self.params.decoder_out_channels, mid_channels, kernel_size=3, padding=1),
                 nn.ReLU(inplace=True),
-                nn.Dropout2d(p=dropout_rate),
-                # 2. Final linear projection
+                nn.Dropout2d(p=dropout_rate)
+            )
+            
+            # Final linear projection for density
+            self.final_density_conv = nn.Sequential(
                 nn.Conv2d(mid_channels, 1, kernel_size=1),
                 nn.ReLU() # Ensures no negative density
             )
 
-            # Branch B: Attention Mask (Binary Classification)
+            # --- STAGE 2: ATTENTION MASK (Macro Spatial Filter) ---
             self.attention_head = nn.Sequential(
-                nn.Conv2d(params.decoder_out_channels, mid_channels, kernel_size=3, padding=1),
+                nn.Conv2d(self.params.decoder_out_channels, mid_channels, kernel_size=3, padding=1),
                 nn.ReLU(inplace=True),
                 nn.Dropout2d(p=dropout_rate),
-                # 2. Final linear projection
-                nn.Conv2d(mid_channels, 1, kernel_size=1),
+                nn.Conv2d(mid_channels, 1, kernel_size=1)
             )
-
-            # Initialize the final bias of the attention head (index 2 now, because of the mid-layer)
+            # Initialize the final bias of the attention head
             nn.init.constant_(self.attention_head[-1].bias, 1.2)
+            
+            # --- STAGE 3: DYNAMIC THRESHOLD (Micro Amplitude Filter) ---
+            self.threshold_generator = nn.Sequential(
+                nn.AdaptiveAvgPool2d(1),
+                nn.Flatten(),
+                nn.Linear(self.params.decoder_out_channels, 64),
+                nn.ReLU(),
+                nn.Linear(64, 1),
+                nn.Sigmoid()
+            )
+            # Steepness multiplier for the differentiable threshold
+            self.k = 50.0 
             # ---------------------------------------------
         
 
@@ -57,32 +70,42 @@ class CrowdCounter(torch.nn.Module):
                 final_density = final_density / float(self.params.label_scaler)
             return final_density
 
-        # 1. Raw outputs (CRITICAL: apply ReLU to density so it can't be negative)
-        raw_density = self.density_head(features)
+        # --- APPLY MACRO SPATIAL GATING ---
         mask_logits = self.attention_head(features) 
-        
-        # 2. Gate the density with the mask for the final output
         spatial_mask = torch.sigmoid(mask_logits)
-        # Detach isn't strictly necessary since we evaluate loss on the raw outputs, 
-        # but we can leave it to be safe.
-        spatial_mask_binary = (spatial_mask > self.threshold).float()
-
-        # 3. Multiply by the binary mask
-        final_density = raw_density.detach() * spatial_mask_binary.detach()
         
-        # 3. Handle Scaling specifically for Evaluation/Inference
+        den_feats = self.density_features(features)
+        
+        # Soft gate the density features with a residual connection
+        gated_feats = (den_feats * spatial_mask) + den_feats
+        
+        # Generate the raw density map (will still have microscopic noise)
+        raw_density = self.final_density_conv(gated_feats)
+
+        # --- APPLY MICRO AMPLITUDE THRESHOLDING ---
+        # Generate the dynamic scalar threshold from the backbone features
+        base_thresh = self.threshold_generator(features).view(-1, 1, 1, 1)
+        
+        # 2. Scale the threshold up to match your 1000x density scale
+        scaler_val = float(self.params.label_scaler)
+        dyn_thresh = base_thresh * scaler_val
+        
+        # 3. Scale 'k' DOWN by the same factor to prevent gradient explosion
+        # If base k is 50, and scaler is 1000, dynamic_k becomes 0.05
+        dynamic_k = self.k / scaler_val
+        
+        # 4. Apply the safe, scaled differentiable threshold
+        final_gate = torch.sigmoid(dynamic_k * (raw_density - dyn_thresh))
+        final_density = raw_density * final_gate
+        
+        # --- Handle Scaling for Evaluation/Inference ---
         if not self.training:
-            scaler_val = float(self.params.label_scaler) 
             # Scale down the gated density for accurate metric counting
             final_density = final_density / scaler_val
-            
-            # NOTE: If your validation dataset provides 'y' that is already scaled DOWN, 
-            # you also need to divide raw_density by scaler_val here so the validation loss is correct.
-            # raw_density = raw_density / scaler_val
 
-        # 4. Return routing
+        # --- Return Routing ---
         if self.training or return_mask:
-            return final_density, raw_density, mask_logits
+            return final_density, mask_logits
         
         return final_density
         
