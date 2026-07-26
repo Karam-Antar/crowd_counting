@@ -12,6 +12,7 @@ from src.core import inference
 from src.models.lit_model import BaseLitModel
 from src.models.model import CrowdCounter
 import lightning.pytorch as pl
+from src.models.metrics import MeanBiasError
 
 class ExportedModel:
     """
@@ -30,7 +31,8 @@ class ExportedModel:
             self.metrics = torchmetrics.MetricCollection({
                 'mae': torchmetrics.MeanAbsoluteError(),
                 'rmse': torchmetrics.MeanSquaredError(squared=False),
-                'nae': torchmetrics.MeanAbsolutePercentageError()
+                'nae': torchmetrics.MeanAbsolutePercentageError(),
+                'mbe': MeanBiasError(),
             })
             self.mask_metrics = torchmetrics.MetricCollection({
                 'iou': torchmetrics.classification.BinaryJaccardIndex(),          
@@ -85,7 +87,7 @@ class ExportedModel:
             
             # 2. Forward Pass
             if getattr(self.model.params, 'loss_function', '') == 'mask_mse_ssim':
-                pred_density, raw_density, mask_logits = self.model(x, return_mask=True)
+                pred_density, mask_logits = self.model(x, return_mask=True)
                 mask_probs = torch.sigmoid(mask_logits)
                 gt_mask = (y > 0).float()
             else:
@@ -121,7 +123,7 @@ class ExportedModel:
             gt_count_tensor = torch.stack(gt_counts)
             
             # 5. Update Metrics
-            self.metrics.update(pred_count_tensor, gt_count_tensor)
+            self.metrics.update(pred_count_tensor + 1, gt_count_tensor + 1)
             
             if mask_probs is not None and hasattr(self, 'mask_metrics'):
                 batch_mask_probs = torch.cat(unpadded_mask_probs)

@@ -12,7 +12,7 @@ class CrowdCounter(torch.nn.Module):
     def __init__(self, params: BaseParams):
         super().__init__()
         self.params = params
-        self.threshold = self.params.seg_threshold
+        self.threshold = self.params.k_threshold
         # 1. Initialize Backbone
         if params.backbone.startswith('hrnet'):
             self.net = HRNet(params)
@@ -51,13 +51,14 @@ class CrowdCounter(torch.nn.Module):
             self.threshold_generator = nn.Sequential(
                 nn.AdaptiveAvgPool2d(1),
                 nn.Flatten(),
-                nn.Linear(self.params.decoder_out_channels, 64),
+                nn.Linear(self.params.decoder_out_channels, mid_channels),
                 nn.ReLU(),
-                nn.Linear(64, 1),
+                nn.Linear(mid_channels, 1),
                 nn.Sigmoid()
             )
+            nn.init.constant_(self.threshold_generator[-2].bias, -3.0)
             # Steepness multiplier for the differentiable threshold
-            self.k = 50.0 
+            self.k = self.params.k_threshold 
             # ---------------------------------------------
         
 
@@ -77,27 +78,27 @@ class CrowdCounter(torch.nn.Module):
         den_feats = self.density_features(features)
         
         # Soft gate the density features with a residual connection
-        gated_feats = (den_feats * spatial_mask) + den_feats
+        gated_feats = (den_feats * spatial_mask.detach()) + den_feats
         
         # Generate the raw density map (will still have microscopic noise)
         raw_density = self.final_density_conv(gated_feats)
 
         # --- APPLY MICRO AMPLITUDE THRESHOLDING ---
         # Generate the dynamic scalar threshold from the backbone features
-        base_thresh = self.threshold_generator(features).view(-1, 1, 1, 1)
+        # base_thresh = self.threshold_generator(features).view(-1, 1, 1, 1)
         
         # 2. Scale the threshold up to match your 1000x density scale
         scaler_val = float(self.params.label_scaler)
-        dyn_thresh = base_thresh * scaler_val
+        # dyn_thresh = base_thresh * scaler_val
         
         # 3. Scale 'k' DOWN by the same factor to prevent gradient explosion
         # If base k is 50, and scaler is 1000, dynamic_k becomes 0.05
-        dynamic_k = self.k / scaler_val
+        # dynamic_k = self.k / scaler_val
         
         # 4. Apply the safe, scaled differentiable threshold
-        final_gate = torch.sigmoid(dynamic_k * (raw_density - dyn_thresh))
-        final_density = raw_density * final_gate
-        
+        # final_gate = torch.sigmoid(dynamic_k * (raw_density - dyn_thresh))
+        # final_density = raw_density * final_gate
+        final_density = raw_density
         # --- Handle Scaling for Evaluation/Inference ---
         if not self.training:
             # Scale down the gated density for accurate metric counting

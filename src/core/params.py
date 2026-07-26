@@ -36,7 +36,9 @@ class BaseParams:
     ssim_weight: Optional[float] = None
     mask_loss_weight: Optional[float] = None
     huber_delta: Optional[float] = None
+    k_threshold: Optional[float] = None
     seg_threshold: Optional[float] = None
+    gt_mask_threshold: Optional[float] = None
     # min_lr_pct: Optional[float] = None
     monitor_metric: str = 'val_nae'
     loss_function: str = 'mse'
@@ -47,6 +49,7 @@ class BaseParams:
 
     # Properties not present in the suggest method (placed last)
     epochs: int = 60
+    check_val_every_n_epoch: Optional[int] = 1
     padding_multiple: int = 32
     dataset: str = config.DATASET_PATH.split('/')[-1]
     train_size: Optional[int] = None

@@ -99,91 +99,93 @@ class CountPenaltyLoss(nn.Module):
                      
         return total_loss
 
-class MaskMSESSIMLoss(nn.Module):
-    def __init__(self, params: BaseParams):
-        super().__init__()
-        self.mse = nn.HuberLoss(delta=params.huber_delta)
-        self.mask_loss_fn = smp.losses.FocalLoss(
-            mode='binary',
-            alpha=0.75,
-            gamma=2.0
-        )
-        # self.bg_penalty_weight = bg_penalty_weight
-        
-        # 4 learnable parameters for [MSE, SSIM, Mask, Background Penalty]
-        # Kendall et al. uncertainty parameters (initialized to 0 -> exp(0) = 1)
-        self.log_vars = nn.Parameter(torch.zeros(3))
-        self.label_scaler = params.label_scaler
-
-    def forward(self, pred_density, mask_logits, gt_density):
-        # 1. Density Loss (Huber)
-        raw_mse = self.mse(pred_density, gt_density)
-        
-        # 2. SSIM Loss with FIXED data_range to prevent gradient explosion on zero-density images
-        # 0.5 is standard for normalized density map peaks; keep fixed across all batches
-        ssim_score = structural_similarity_index_measure(pred_density, gt_density, data_range=1*self.label_scaler)
-        raw_ssim = 1.0 - ssim_score
-        
-        # 3. Mask Loss with Thresholded Gaussian Tails
-        gt_mask = (gt_density > 5e-4*self.label_scaler).float()  # Cut off Gaussian tails
-        
-        if mask_logits is not None:
-            raw_mask = self.mask_loss_fn(mask_logits, gt_mask)
-        else:
-            raw_mask = torch.tensor(0.0, device=pred_density.device)
-
-
-        # --- Kendall Uncertainty Weighting Formulation ---
-        # Formula: 0.5 * exp(-log_var) * Loss + 0.5 * log_var
-        loss_mse = 0.5 * torch.exp(-self.log_vars[0]) * raw_mse + 0.5 * self.log_vars[0]
-        loss_ssim = 0.5 * torch.exp(-self.log_vars[1]) * raw_ssim + 0.5 * self.log_vars[1]
-        loss_mask = 0.5 * torch.exp(-self.log_vars[2]) * raw_mask + 0.5 * self.log_vars[2]
-
-        total_loss = loss_mse + loss_ssim + loss_mask
-            
-        return total_loss
-
-
 # class MaskMSESSIMLoss(nn.Module):
 #     def __init__(self, params: BaseParams):
 #         super().__init__()
 #         self.mse = nn.HuberLoss(delta=params.huber_delta)
 #         self.mask_loss_fn = smp.losses.FocalLoss(
 #             mode='binary',
-#             alpha=0.75, # Weight for the positive class (foreground)
-#             gamma=2.0   # Focusing parameter (2.0 is standard)
+#             alpha=0.75,
+#             gamma=2.0
 #         )
-#         self.ssim_weight = params.ssim_weight
-#         self.mse_weight = 1-self.ssim_weight
-#         self.mask_loss_weight = params.mask_loss_weight
-#         # 3 learnable parameters for MSE, SSIM, and Mask
-#         # Initialized to 0 (since they represent log(variance))
+#         # self.bg_penalty_weight = bg_penalty_weight
+        
+#         # 4 learnable parameters for [MSE, SSIM, Mask, Background Penalty]
+#         # Kendall et al. uncertainty parameters (initialized to 0 -> exp(0) = 1)
 #         self.log_vars = nn.Parameter(torch.zeros(3))
+#         self.label_scaler = params.label_scaler
 
 #     def forward(self, pred_density, mask_logits, gt_density):
-#         raw_mse = self.mse(pred_density, gt_density) * self.mse_weight
+#         # 1. Density Loss (Huber)
+#         raw_mse = self.mse(pred_density, gt_density)
         
+#         # 2. SSIM Loss with FIXED data_range to prevent gradient explosion on zero-density images
+#         # 0.5 is standard for normalized density map peaks; keep fixed across all batches
 #         max_val = torch.clamp(gt_density.max(), min=1e-5)
-#         ssim_score = structural_similarity_index_measure(pred_density, gt_density, data_range=max_val) * self.ssim_weight
+#         ssim_score = structural_similarity_index_measure(pred_density, gt_density, data_range=max_val)
 #         raw_ssim = 1.0 - ssim_score
         
-#         # Formula: (Loss / (2 * exp(log_var))) + (log_var / 2)
-#         # The log_var term penalizes the network for just making the denominator huge
-#         loss_mse = (raw_mse * torch.exp(-self.log_vars[0])) + self.log_vars[0]
-#         loss_ssim = (raw_ssim * torch.exp(-self.log_vars[1])) + self.log_vars[1]
-        
-#         total_loss = loss_mse + loss_ssim
+#         # 3. Mask Loss with Thresholded Gaussian Tails
+#         gt_mask = (gt_density > 0).float()  # Cut off Gaussian tails
         
 #         if mask_logits is not None:
-#             gt_mask = (gt_density > 0).float()
 #             raw_mask = self.mask_loss_fn(mask_logits, gt_mask)
-#             loss_mask = (raw_mask * torch.exp(-self.log_vars[2])) + self.log_vars[2]
-#             total_loss += self.mask_loss_weight * loss_mask
-#             # print(f"MSE: {raw_mse.item():.4f} | SSIM: {raw_ssim.item():.4f} | Mask: {raw_mask.item():.4f}")
-#             # print(f"Scaled MSE: {loss_mse.item():.4f} | Scaled SSIM: {loss_ssim.item():.4f} | Scaled Mask: {loss_mask.item():.4f}")
-#             # print()
+#         else:
+#             raw_mask = torch.tensor(0.0, device=pred_density.device)
+
+
+#         # --- Kendall Uncertainty Weighting Formulation ---
+#         # Formula: 0.5 * exp(-log_var) * Loss + 0.5 * log_var
+#         loss_mse = 0.5 * torch.exp(-self.log_vars[0]) * raw_mse + 0.5 * self.log_vars[0]
+#         loss_ssim = 0.5 * torch.exp(-self.log_vars[1]) * raw_ssim + 0.5 * self.log_vars[1]
+#         loss_mask = 0.5 * torch.exp(-self.log_vars[2]) * raw_mask + 0.5 * self.log_vars[2]
+
+#         total_loss = loss_mse + loss_ssim + loss_mask
             
 #         return total_loss
+
+
+class MaskMSESSIMLoss(nn.Module):
+    def __init__(self, params: BaseParams):
+        super().__init__()
+        self.mse = nn.HuberLoss(delta=params.huber_delta)
+        self.mask_loss_fn = smp.losses.FocalLoss(
+            mode='binary',
+            alpha=0.75, # Weight for the positive class (foreground)
+            gamma=2.0   # Focusing parameter (2.0 is standard)
+        )
+        self.ssim_weight = params.ssim_weight
+        self.mse_weight = 1-self.ssim_weight
+        self.mask_loss_weight = params.mask_loss_weight
+        # 3 learnable parameters for MSE, SSIM, and Mask
+        # Initialized to 0 (since they represent log(variance))
+        self.log_vars = nn.Parameter(torch.zeros(3))
+        self.gt_mask_threshold = params.gt_mask_threshold
+
+    def forward(self, pred_density, mask_logits, gt_density):
+        raw_mse = self.mse(pred_density, gt_density) * self.mse_weight
+        
+        # max_val = torch.clamp(gt_density.max(), min=1e-5)
+        ssim_score = structural_similarity_index_measure(pred_density, gt_density, data_range=1e3) * self.ssim_weight
+        raw_ssim = 1.0 - ssim_score
+        
+        # Formula: (Loss / (2 * exp(log_var))) + (log_var / 2)
+        # The log_var term penalizes the network for just making the denominator huge
+        loss_mse = (raw_mse * torch.exp(-self.log_vars[0])) + self.log_vars[0]
+        loss_ssim = (raw_ssim * torch.exp(-self.log_vars[1])) + self.log_vars[1]
+        
+        total_loss = loss_mse + loss_ssim
+        
+        if mask_logits is not None:
+            gt_mask = (gt_density > self.gt_mask_threshold).float()
+            raw_mask = self.mask_loss_fn(mask_logits, gt_mask)
+            loss_mask = (raw_mask * torch.exp(-self.log_vars[2])) + self.log_vars[2]
+            total_loss += self.mask_loss_weight * loss_mask
+            # print(f"MSE: {raw_mse.item():.4f} | SSIM: {raw_ssim.item():.4f} | Mask: {raw_mask.item():.4f}")
+            # print(f"Scaled MSE: {loss_mse.item():.4f} | Scaled SSIM: {loss_ssim.item():.4f} | Scaled Mask: {loss_mask.item():.4f}")
+            # print()
+            
+        return total_loss
 
 
 
