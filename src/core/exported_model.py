@@ -12,7 +12,7 @@ from src.core import inference
 from src.models.lit_model import BaseLitModel
 from src.models.model import CrowdCounter
 import lightning.pytorch as pl
-from src.models.metrics import MeanBiasError
+from src.models.metrics import MeanBiasError, PositiveOnlyNAE
 
 class ExportedModel:
     """
@@ -31,7 +31,7 @@ class ExportedModel:
             self.metrics = torchmetrics.MetricCollection({
                 'mae': torchmetrics.MeanAbsoluteError(),
                 'rmse': torchmetrics.MeanSquaredError(squared=False),
-                'nae': torchmetrics.MeanAbsolutePercentageError(),
+                'nae': PositiveOnlyNAE(),
                 'mbe': MeanBiasError(),
             })
             self.mask_metrics = torchmetrics.MetricCollection({
@@ -123,7 +123,7 @@ class ExportedModel:
             gt_count_tensor = torch.stack(gt_counts)
             
             # 5. Update Metrics
-            self.metrics.update(pred_count_tensor + 1, gt_count_tensor + 1)
+            self.metrics.update(pred_count_tensor, gt_count_tensor)
             
             if mask_probs is not None and hasattr(self, 'mask_metrics'):
                 batch_mask_probs = torch.cat(unpadded_mask_probs)

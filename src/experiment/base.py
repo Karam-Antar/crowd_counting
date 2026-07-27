@@ -55,7 +55,7 @@ class BaseExperimentRunner(ABC):
 
     def _get_default_callbacks(self) -> list:
         return [
-            EarlyStopping(monitor=self.monitor_metric, patience=50, mode=self.monitor_mode),
+            EarlyStopping(monitor=self.monitor_metric, patience=45, mode=self.monitor_mode),
             # ReseedCallback(),
             LearningRateMonitor(logging_interval='epoch'),
             ModelCheckpoint(

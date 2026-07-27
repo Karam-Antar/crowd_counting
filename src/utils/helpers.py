@@ -213,23 +213,24 @@ def get_sample_from_dm(datamodule, index=0):
     sample_image = sample_image.unsqueeze(0)
     # Calculate the ground truth count by summing the density map tensor
     gt_count = target.sum().item()
+    sample_image = PadToMultiple()(sample_image)[0]
     
     return sample_image, target, gt_count
 
-def get_sample_from_ds(img_path=None, h5_path=None, index=0):
-    # Load Image
-    if not img_path:
-        img_path = glob.glob(f"{config.TRAIN_PATH}/images/*.jpg")[index]
-        h5_path = img_path.replace("images", "ground-truth-h5").rsplit('_', 1)[0] + '.h5'
-    img = Image.open(img_path).convert('RGB')
+# def get_sample_from_ds(img_path=None, h5_path=None, index=0):
+#     # Load Image
+#     if not img_path:
+#         img_path = glob.glob(f"{config.TRAIN_PATH}/images/*.jpg")[index]
+#         h5_path = img_path.replace("images", "ground-truth-h5").rsplit('_', 1)[0] + '.h5'
+#     img = Image.open(img_path).convert('RGB')
     
-    # Load Density Map
-    with h5py.File(h5_path, 'r') as hf:
-        density_map = np.asarray(hf['density'])
+#     # Load Density Map
+#     with h5py.File(h5_path, 'r') as hf:
+#         density_map = np.asarray(hf['density'])
     
-    # Calculate Ground Truth Count
-    gt_count = np.sum(density_map)
-    return img, density_map, gt_count
+#     # Calculate Ground Truth Count
+#     gt_count = np.sum(density_map)
+#     return img, density_map, gt_count
 
 def transform_sample(img, params):
     import timm

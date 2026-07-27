@@ -11,7 +11,7 @@ from src.core.params import BaseParams
 from src.data.transform import UnpadToOriginal
 from src.models.loss import MaskMSESSIMLoss, MSESSIMLoss, SSIMLoss, CountPenaltyLoss, SpatiallyWeightedLoss
 from src.models.model import CrowdCounter
-from src.models.metrics import MeanBiasError
+from src.models.metrics import MeanBiasError, PositiveOnlyNAE
 # from src.utils.registries import MODEL_REGISTRY
 
 
@@ -29,7 +29,7 @@ class BaseLitModel(pl.LightningModule):
         metrics = torchmetrics.MetricCollection({
             'mae': torchmetrics.MeanAbsoluteError(),
             'rmse': torchmetrics.MeanSquaredError(squared=False),
-            'nae': torchmetrics.MeanAbsolutePercentageError(),
+            'nae': PositiveOnlyNAE(),
             'mbe': MeanBiasError(),
         })
         mask_metrics = torchmetrics.MetricCollection({
@@ -89,7 +89,7 @@ class BaseLitModel(pl.LightningModule):
         gt_count = torch.sum(y, dim=(1, 2, 3)) / self.params.label_scaler
         
         # 4. Log Training Metrics
-        self.train_metrics(pred_count + 1, gt_count + 1)
+        self.train_metrics(pred_count, gt_count)
         self.log_dict(self.train_metrics, on_step=False, on_epoch=True, prog_bar=True)
         self.log('train_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
         
@@ -134,7 +134,7 @@ class BaseLitModel(pl.LightningModule):
         gt_count_tensor = torch.stack(gt_counts)
         
         # 5. Log Validation Count Metrics & Loss
-        self.val_metrics(pred_count_tensor + 1, gt_count_tensor + 1)
+        self.val_metrics(pred_count_tensor, gt_count_tensor)
         self.log_dict(self.val_metrics, on_step=False, on_epoch=True, prog_bar=True)
         self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log('epoch_idx', float(self.current_epoch), on_step=False, on_epoch=True)

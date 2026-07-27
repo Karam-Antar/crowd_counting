@@ -151,8 +151,8 @@ class MaskMSESSIMLoss(nn.Module):
         self.mse = nn.HuberLoss(delta=params.huber_delta)
         self.mask_loss_fn = smp.losses.FocalLoss(
             mode='binary',
-            alpha=0.75, # Weight for the positive class (foreground)
-            gamma=2.0   # Focusing parameter (2.0 is standard)
+            alpha=params.mask_loss_alpha, # Weight for the positive class (foreground)
+            gamma=params.mask_loss_gamma,   # Focusing parameter (2.0 is standard)
         )
         self.ssim_weight = params.ssim_weight
         self.mse_weight = 1-self.ssim_weight
@@ -165,8 +165,8 @@ class MaskMSESSIMLoss(nn.Module):
     def forward(self, pred_density, mask_logits, gt_density):
         raw_mse = self.mse(pred_density, gt_density) * self.mse_weight
         
-        # max_val = torch.clamp(gt_density.max(), min=1e-5)
-        ssim_score = structural_similarity_index_measure(pred_density, gt_density, data_range=1e3) * self.ssim_weight
+        max_val = torch.clamp(gt_density.max(), min=1e-5)
+        ssim_score = structural_similarity_index_measure(pred_density, gt_density, data_range=max_val) * self.ssim_weight
         raw_ssim = 1.0 - ssim_score
         
         # Formula: (Loss / (2 * exp(log_var))) + (log_var / 2)

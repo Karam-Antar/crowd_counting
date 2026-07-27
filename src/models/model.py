@@ -48,17 +48,17 @@ class CrowdCounter(torch.nn.Module):
             nn.init.constant_(self.attention_head[-1].bias, 1.2)
             
             # --- STAGE 3: DYNAMIC THRESHOLD (Micro Amplitude Filter) ---
-            self.threshold_generator = nn.Sequential(
-                nn.AdaptiveAvgPool2d(1),
-                nn.Flatten(),
-                nn.Linear(self.params.decoder_out_channels, mid_channels),
-                nn.ReLU(),
-                nn.Linear(mid_channels, 1),
-                nn.Sigmoid()
-            )
-            nn.init.constant_(self.threshold_generator[-2].bias, -3.0)
+            # self.threshold_generator = nn.Sequential(
+            #     nn.AdaptiveAvgPool2d(1),
+            #     nn.Flatten(),
+            #     nn.Linear(self.params.decoder_out_channels, mid_channels),
+            #     nn.ReLU(),
+            #     nn.Linear(mid_channels, 1),
+            #     nn.Sigmoid()
+            # )
+            # nn.init.constant_(self.threshold_generator[-2].bias, -3.0)
             # Steepness multiplier for the differentiable threshold
-            self.k = self.params.k_threshold 
+            # self.k = self.params.k_threshold 
             # ---------------------------------------------
         
 
@@ -78,7 +78,7 @@ class CrowdCounter(torch.nn.Module):
         den_feats = self.density_features(features)
         
         # Soft gate the density features with a residual connection
-        gated_feats = (den_feats * spatial_mask.detach()) + den_feats
+        gated_feats = (den_feats * spatial_mask) + den_feats
         
         # Generate the raw density map (will still have microscopic noise)
         raw_density = self.final_density_conv(gated_feats)

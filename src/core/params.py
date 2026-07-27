@@ -36,6 +36,8 @@ class BaseParams:
     ssim_weight: Optional[float] = None
     mask_loss_weight: Optional[float] = None
     huber_delta: Optional[float] = None
+    mask_loss_alpha: Optional[float] = None
+    mask_loss_gamma: Optional[float] = None
     k_threshold: Optional[float] = None
     seg_threshold: Optional[float] = None
     gt_mask_threshold: Optional[float] = None
