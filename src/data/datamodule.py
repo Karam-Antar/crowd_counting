@@ -91,23 +91,54 @@ class CrowdDataModule(pl.LightningDataModule):
         return img, mask
 
     def apply_val_train_transforms(self, img, mask):
+        import torch.nn.functional as F
+        
         # 1. Initial base test transforms
         img, mask = self.test_joint_augs(img, mask)
         
-        # 2. Fallback to 512 if crop_size isn't passed
-        crop_size = self.params.crop_size or (512, 512) 
-        
-        # 3. Ensure mask is treated spatially by v2.FiveCrop
-        if mask is not None and isinstance(mask, torch.Tensor) and not isinstance(mask, tv_tensors.Mask):
-            mask = tv_tensors.Mask(mask)
+        # 2. Extract and format crop_size securely
+        crop_size = self.params.crop_size or (512, 512)
+        if isinstance(crop_size, int):
+            crop_size = (crop_size, crop_size)
             
-        # 4. Generate 5 crops for both image and mask
-        img_crops, mask_crops = v2.FiveCrop(crop_size)(img, mask)
+        # 3. --- THE FIX: Dynamic Minimum Padding ---
+        # If the image is smaller than the requested crop_size, pad it on the bottom/right.
+        h, w = img.shape[-2], img.shape[-1]
+        pad_bottom = max(0, crop_size[0] - h)
+        pad_right = max(0, crop_size[1] - w)
         
-        # 5. Process image-only ops on each crop and stack them
-        img_crops = torch.stack([self.test_image_augs(c) for c in img_crops])
+        if pad_bottom > 0 or pad_right > 0:
+            # F.pad expects (pad_left, pad_right, pad_top, pad_bottom)
+            img = F.pad(img, (0, pad_right, 0, pad_bottom))
+            if mask is not None:
+                mask = F.pad(mask, (0, pad_right, 0, pad_bottom))
+        
+        # 4. Create the deterministic FiveCrop transform
+        five_crop = v2.FiveCrop(crop_size)
+        
+        # 5. Crop the image
+        img_crops = five_crop(img)
+        
+        # 6. Crop the mask separately
         if mask is not None:
-            mask_crops = torch.stack(list(mask_crops)) # Convert tuple back to stacked tensor
+            # Strip the tv_tensors.Mask class temporarily
+            plain_mask = mask.as_subclass(torch.Tensor)
+            
+            is_2d = plain_mask.ndim == 2
+            if is_2d:
+                plain_mask = plain_mask.unsqueeze(0)
+                
+            mask_crops = five_crop(plain_mask) 
+            
+            if is_2d:
+                mask_crops = tuple(c.squeeze(0) for c in mask_crops)
+                
+            mask_crops = torch.stack(list(mask_crops))
+        else:
+            mask_crops = None
+            
+        # 7. Apply image-only ops on each crop and stack them
+        img_crops = torch.stack([self.test_image_augs(c) for c in img_crops])
             
         return img_crops, mask_crops
 
