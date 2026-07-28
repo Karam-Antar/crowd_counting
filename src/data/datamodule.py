@@ -4,11 +4,11 @@ import lightning.pytorch as pl
 from torch.utils.data import DataLoader, random_split
 from torchvision.transforms import v2
 import os
-
+from torchvision import tv_tensors
 from src import config
 from src.core.params import BaseParams
 from src.data.dataset import CustomDataset, EnsemblePathWrapper
-from src.data.transform import CustomRandomCrop, PadToMultiple, SafePhotometricRandAugment, DynamicPadCollate
+from src.data.transform import CustomRandomCrop, FiveCropCollate, PadToMultiple, SafePhotometricRandAugment, DynamicPadCollate
 
 # Helper class to apply transforms to random_split subsets
 class DatasetTransformWrapper(torch.utils.data.Dataset):
@@ -90,6 +90,27 @@ class CrowdDataModule(pl.LightningDataModule):
         #     mask = mask * (self.params.label_scaler or 1)
         return img, mask
 
+    def apply_val_train_transforms(self, img, mask):
+        # 1. Initial base test transforms
+        img, mask = self.test_joint_augs(img, mask)
+        
+        # 2. Fallback to 512 if crop_size isn't passed
+        crop_size = self.params.crop_size or (512, 512) 
+        
+        # 3. Ensure mask is treated spatially by v2.FiveCrop
+        if mask is not None and isinstance(mask, torch.Tensor) and not isinstance(mask, tv_tensors.Mask):
+            mask = tv_tensors.Mask(mask)
+            
+        # 4. Generate 5 crops for both image and mask
+        img_crops, mask_crops = v2.FiveCrop(crop_size)(img, mask)
+        
+        # 5. Process image-only ops on each crop and stack them
+        img_crops = torch.stack([self.test_image_augs(c) for c in img_crops])
+        if mask is not None:
+            mask_crops = torch.stack(list(mask_crops)) # Convert tuple back to stacked tensor
+            
+        return img_crops, mask_crops
+
     def setup(self, stage=None):
         train_path = config.TRAIN_PATH
         test_path = config.TEST_PATH
@@ -127,6 +148,9 @@ class CrowdDataModule(pl.LightningDataModule):
             
                 # 3. Apply wrappers
             self.train_ds = DatasetTransformWrapper(train_subset, self.apply_train_transforms)
+            # for val_dataloader
+            self.val_train_ds = DatasetTransformWrapper(val_subset, self.apply_val_train_transforms)
+            # for final_val_dataloader
             self.val_ds = DatasetTransformWrapper(val_subset, self.apply_test_transforms)
             self.train_eval_ds = DatasetTransformWrapper(train_subset, self.apply_test_transforms)
 
@@ -141,8 +165,18 @@ class CrowdDataModule(pl.LightningDataModule):
 
     def train_dataloader(self):
         return DataLoader(self.train_ds, batch_size=self.params.batch_size, shuffle=True, num_workers=8, pin_memory=True)
-
+    
     def val_dataloader(self):
+        """Cheaper validation during training utilizing FiveCrop."""
+        return DataLoader(
+            self.val_train_ds, 
+            batch_size=self.params.val_batch_size or 4, 
+            num_workers=12, 
+            pin_memory=True, 
+            collate_fn=FiveCropCollate(self.params.padding_multiple)
+        )
+
+    def final_val_dataloader(self):
         # BS=1 is standard for crowd counting validation on full images
         return DataLoader(self.val_ds, batch_size=self.params.val_batch_size or 4, num_workers=12, pin_memory=True, collate_fn=DynamicPadCollate(self.params.padding_multiple))
 

@@ -120,44 +120,69 @@ class SafePhotometricRandAugment(torch.nn.Module):
         return torch.clamp(img, 1e-6, 1.0)
 
 
-class DynamicPadCollate:
+class BasePadCollate:
+    """Base class to share mathematical padding logic across collate functions."""
     def __init__(self, multiple):
         self.multiple = multiple
         
-    def __call__(self, batch):
-        B = len(batch)
-        C = batch[0][0].shape[0]  
-        stride = self.multiple
+    def get_padded_dims(self, h, w):
+        """Calculates the nearest multiple of stride for height and width."""
+        pad_h = ((h + self.multiple - 1) // self.multiple) * self.multiple
+        pad_w = ((w + self.multiple - 1) // self.multiple) * self.multiple
+        return pad_h, pad_w
         
-        # 1. Get original sizes
-        original_sizes = torch.tensor([(item[0].shape[1], item[0].shape[2]) for item in batch])
+    def pad_tensor(self, tensor, target_h, target_w):
+        """Pads a tensor on the bottom and right edges using PyTorch's native F.pad."""
+        h, w = tensor.shape[-2], tensor.shape[-1]
+        pad_bottom = target_h - h
+        pad_right = target_w - w
+        
+        # Skip padding entirely if already at target dimensions
+        if pad_bottom == 0 and pad_right == 0:
+            return tensor
+            
+        # F.pad expects padding for the last 2 dims formatted as: 
+        # (pad_left, pad_right, pad_top, pad_bottom)
+        return F.pad(tensor, (0, pad_right, 0, pad_bottom))
+
+
+class DynamicPadCollate(BasePadCollate):
+    def __call__(self, batch):
+        # 1. Get original sizes (H, W are always the last two dimensions)
+        original_sizes = [[item[0].shape[-2], item[0].shape[-1]] for item in batch]
         
         # 2. Find max H and max W across the batch
-        max_h, max_w = original_sizes.max(dim=0).values.tolist()
+        max_h = max(size[0] for size in original_sizes)
+        max_w = max(size[1] for size in original_sizes)
         
-        # 3. Adjust max_h and max_w to be multiples of the stride (32)
-        # Math trick to round up to the nearest multiple of 'stride'
-        pad_h = ((max_h + stride - 1) // stride) * stride
-        pad_w = ((max_w + stride - 1) // stride) * stride
+        # 3. Calculate the target padded dimensions for this batch
+        pad_h, pad_w = self.get_padded_dims(max_h, max_w)
         
-        # 4. Pre-allocate tensors using the stride-padded dimensions
-        batched_images = torch.zeros((B, C, pad_h, pad_w), dtype=batch[0][0].dtype)
+        # 4. Pad each item and stack them (F.pad natively fills with 0)
+        batched_images = torch.stack([self.pad_tensor(item[0], pad_h, pad_w) for item in batch])
+        batched_masks = torch.stack([self.pad_tensor(item[1], pad_h, pad_w) for item in batch])
         
-        mask_shape = batch[0][1].shape
-        if len(mask_shape) == 3:  
-            batched_masks = torch.zeros((B, mask_shape[0], pad_h, pad_w), dtype=batch[0][1].dtype)
-        else:                     
-            batched_masks = torch.zeros((B, pad_h, pad_w), dtype=batch[0][1].dtype)
+        return batched_images, batched_masks, original_sizes
 
-        # 5. Drop images into the top-left corner
-        for i, (img, mask) in enumerate(batch):
-            h, w = original_sizes[i].tolist()
-            
-            batched_images[i, :, :h, :w] = img
-            
-            if len(mask_shape) == 3:
-                batched_masks[i, :, :h, :w] = mask
-            else:
-                batched_masks[i, :h, :w] = mask
-                
-        return batched_images, batched_masks, original_sizes.tolist()
+
+class FiveCropCollate(BasePadCollate):
+    def __call__(self, batch):
+        # 1. Stack and flatten the batch of crops
+        imgs = torch.stack([item[0] for item in batch]).flatten(0, 1)
+        masks = torch.stack([item[1] for item in batch]).flatten(0, 1)
+        
+        # 2. Get original unpadded size (all crops naturally share the same size)
+        orig_h, orig_w = imgs.shape[-2], imgs.shape[-1]
+        
+        # 3. Calculate target padded dimensions
+        pad_h, pad_w = self.get_padded_dims(orig_h, orig_w)
+        
+        # 4. Apply padding (Vectorized over the entire batch at once)
+        padded_imgs = self.pad_tensor(imgs, pad_h, pad_w)
+        padded_masks = self.pad_tensor(masks, pad_h, pad_w)
+        
+        # 5. Format original sizes to match the LitModel expectations
+        B_total = imgs.shape[0]
+        original_sizes = [[orig_h, orig_w]] * B_total
+        
+        return padded_imgs, padded_masks, original_sizes

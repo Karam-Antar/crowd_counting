@@ -9,6 +9,7 @@ from torchmetrics import MetricCollection
 from typing import Union, Dict, Optional, Tuple
 from src import config
 from src.core import inference
+from src.data.datamodule import CrowdDataModule
 from src.models.lit_model import BaseLitModel
 from src.models.model import CrowdCounter
 import lightning.pytorch as pl
@@ -62,10 +63,10 @@ class ExportedModel:
 
 
     @torch.no_grad()
-    def evaluate(self, data: Union[DataLoader, pl.LightningDataModule]) -> Dict[str, float]:
+    def evaluate(self, data: Union[DataLoader, CrowdDataModule]) -> Dict[str, float]:
         if isinstance(data, pl.LightningDataModule):
             data.setup(stage="test")
-            loader = data.test_dataloader() or data.val_dataloader()
+            loader = data.test_dataloader() or data.final_val_dataloader()
         else:
             loader = data
         
