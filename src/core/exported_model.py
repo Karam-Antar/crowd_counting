@@ -82,6 +82,7 @@ class ExportedModel:
         
         for batch in loader:
             # Unpack dynamic batch including original sizes
+            # torch.cuda.empty_cache()
             x, y, orig_sizes = batch
             x, y = x.to(self.device), y.to(self.device)
             
