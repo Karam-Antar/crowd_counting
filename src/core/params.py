@@ -14,6 +14,7 @@ class BaseParams:
     label_scaler: Optional[int] = config.LABEL_SCALER
     aug_factor: Optional[float] = None
     num_ops: Optional[int] = None
+    five_crops: bool = False
 
     # Architecture tweaks
     backbone: str = 'efficientnet-b0'

@@ -11,7 +11,7 @@ from src.core.params import BaseParams
 from src.data.transform import UnpadToOriginal
 from src.models.loss import MaskMSESSIMLoss, MSESSIMLoss, SSIMLoss, CountPenaltyLoss, SpatiallyWeightedLoss
 from src.models.model import CrowdCounter
-from src.models.metrics import MeanBiasError, PositiveOnlyNAE
+from src.models.metrics import MeanBiasError, PositiveOnlyNAE, CombinedMAEMBE
 # from src.utils.registries import MODEL_REGISTRY
 
 
@@ -31,6 +31,7 @@ class BaseLitModel(pl.LightningModule):
             'rmse': torchmetrics.MeanSquaredError(squared=False),
             'nae': PositiveOnlyNAE(),
             'mbe': MeanBiasError(),
+            'mae_mbe': CombinedMAEMBE(),
         })
         mask_metrics = torchmetrics.MetricCollection({
             'iou': torchmetrics.classification.BinaryJaccardIndex(),          

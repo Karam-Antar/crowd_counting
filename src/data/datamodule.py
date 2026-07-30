@@ -9,16 +9,30 @@ from src import config
 from src.core.params import BaseParams
 from src.data.dataset import CustomDataset, EnsemblePathWrapper
 from src.data.transform import CustomRandomCrop, FiveCropCollate, PadToMultiple, SafePhotometricRandAugment, DynamicPadCollate
+from tqdm import tqdm
 
-# Helper class to apply transforms to random_split subsets
 class DatasetTransformWrapper(torch.utils.data.Dataset):
-    def __init__(self, subset, transform_fn):
+    def __init__(self, subset, transform_fn, pre_transform=False):
         self.subset = subset
         self.transform_fn = transform_fn
+        self.pre_transform = pre_transform
+        self.preloaded_data = []
+        
+        if self.pre_transform:
+            print(f"Pre-transforming {len(subset)} validation samples into RAM...")
+            for i in tqdm(range(len(self.subset))):
+                x, y = self.subset[i]
+                if self.transform_fn:
+                    x, y = self.transform_fn(x, y)
+                # Store the fully processed float32 tensors
+                self.preloaded_data.append((x, y))
         
     def __getitem__(self, index):
+        if self.pre_transform:
+            # 100% CPU-free fetch during training
+            return self.preloaded_data[index]
+            
         x, y = self.subset[index]
-        # Pass both x and y to our custom transform function
         if self.transform_fn:
             x, y = self.transform_fn(x, y)
         return x, y
@@ -90,7 +104,7 @@ class CrowdDataModule(pl.LightningDataModule):
         #     mask = mask * (self.params.label_scaler or 1)
         return img, mask
 
-    def apply_val_train_transforms(self, img, mask):
+    def apply_five_crop_transforms(self, img, mask):
         import torch.nn.functional as F
         
         # 1. Initial base test transforms
@@ -155,7 +169,8 @@ class CrowdDataModule(pl.LightningDataModule):
             # 1. Always load the training set
             full_train_ds = CustomDataset(
                 img_dir=os.path.join(train_path, "images"),
-                gt_dir=os.path.join(train_path, "ground-truth-npy")
+                gt_dir=os.path.join(train_path, "ground-truth-npy"),
+                preload_to_ram=True,
             )
             
             # 2. Check for the existence of the 'val' folder
@@ -164,7 +179,8 @@ class CrowdDataModule(pl.LightningDataModule):
                 # Load validation dataset from folder
                 val_subset = CustomDataset(
                     img_dir=os.path.join(val_path, "images"),
-                    gt_dir=os.path.join(val_path, "ground-truth-npy")
+                    gt_dir=os.path.join(val_path, "ground-truth-npy"),
+                    preload_to_ram=True
                 )
                 train_subset = full_train_ds
             else:
@@ -180,9 +196,11 @@ class CrowdDataModule(pl.LightningDataModule):
                 # 3. Apply wrappers
             self.train_ds = DatasetTransformWrapper(train_subset, self.apply_train_transforms)
             # for val_dataloader
-            self.val_train_ds = DatasetTransformWrapper(val_subset, self.apply_val_train_transforms)
+            if self.params.five_crops:
+                self.five_crops_val_ds = DatasetTransformWrapper(val_subset, self.apply_five_crop_transforms, pre_transform=True)
             # for final_val_dataloader
-            self.val_ds = DatasetTransformWrapper(val_subset, self.apply_test_transforms)
+            else:
+                self.val_ds = DatasetTransformWrapper(val_subset, self.apply_test_transforms, pre_transform=True)
             self.train_eval_ds = DatasetTransformWrapper(train_subset, self.apply_test_transforms)
 
         if stage == "test" or stage is None:
@@ -199,16 +217,14 @@ class CrowdDataModule(pl.LightningDataModule):
     
     def val_dataloader(self):
         """Cheaper validation during training utilizing FiveCrop."""
-        return DataLoader(
-            self.val_train_ds, 
-            batch_size=self.params.val_batch_size or 4, 
-            num_workers=12, 
-            pin_memory=True, 
-            collate_fn=FiveCropCollate(self.params.padding_multiple)
-        )
-
-    def final_val_dataloader(self):
-        # BS=1 is standard for crowd counting validation on full images
+        if self.params.five_crops:
+            return DataLoader(
+                self.five_crops_val_ds, 
+                batch_size=self.params.val_batch_size or 4, 
+                num_workers=12, 
+                pin_memory=True, 
+                collate_fn=FiveCropCollate(self.params.padding_multiple)
+            )
         return DataLoader(self.val_ds, batch_size=self.params.val_batch_size or 4, num_workers=12, pin_memory=True, collate_fn=DynamicPadCollate(self.params.padding_multiple))
 
     def test_dataloader(self):

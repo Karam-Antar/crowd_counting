@@ -143,7 +143,7 @@ class BasePadCollate:
             
         # F.pad expects padding for the last 2 dims formatted as: 
         # (pad_left, pad_right, pad_top, pad_bottom)
-        return F.pad(tensor, (0, pad_right, 0, pad_bottom))
+        return F.pad(tensor, (0, 0, pad_right, pad_bottom))
 
 
 class DynamicPadCollate(BasePadCollate):

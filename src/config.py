@@ -9,12 +9,11 @@ from dotenv import load_dotenv, find_dotenv
 # This fixes the script vs. notebook execution location issue.
 env_path = find_dotenv()
 if not env_path:
-    raise FileNotFoundError("Could not find .env file. Please create one at the project root.")
-
-load_dotenv(env_path)
-
-# 2. Establish an absolute anchor for the project root based on where .env was found
-PROJECT_ROOT = Path(env_path).parent
+    load_dotenv(find_dotenv())
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+else:
+    load_dotenv(env_path)
+    PROJECT_ROOT = Path(env_path).parent
 
 SEED = 42
 LABEL_SCALER = 1000
@@ -32,7 +31,7 @@ DATA_HOME = Path(os.getenv('DATA_HOME', PROJECT_ROOT / 'datasets'))
 
 SHANGHAI_PATH = DATA_HOME / 'ShanghaiTech' / 'part_A'
 JHU_PATH = DATA_HOME / 'jhu-crowd-pp-v2'
-DATASET_PATH = JHU_PATH
+DATASET_PATH = SHANGHAI_PATH
 
 TRAIN_PATH = DATASET_PATH / ('train' if DATASET_PATH == JHU_PATH else 'train_data')
 TEST_PATH = DATASET_PATH / ('test' if DATASET_PATH == JHU_PATH else 'test_data')

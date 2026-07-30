@@ -139,23 +139,30 @@ def prepare_temp_dir(artifacts_path: Path, payload: ModelPayload, experiment_nam
 
 def is_metric_better_than_history(payload: ModelPayload) -> bool:
         from mlflow.tracking import MlflowClient
+        from mlflow.exceptions import MlflowException
+        
         client = MlflowClient()
         experiment = client.get_experiment_by_name(payload.tracker.experiment)
         
         if not experiment:
             return True
+            
         metric_name = f"best_{payload.monitor_metric}"
         mode = payload.monitor_mode
         filter_query = f"metrics.{metric_name} >= 0 AND attributes.run_id != '{payload.tracker.logger.run_id}'"
-
         order_direction = "ASC" if mode == "min" else "DESC"
-        best_runs = client.search_runs(
-            experiment_ids=[experiment.experiment_id],
-            filter_string=filter_query, # Ensure the metric was actually logged
-            order_by=[f"metrics.{metric_name} {order_direction}"],
-            max_results=1
-        )
         
+        try:
+            best_runs = client.search_runs(
+                experiment_ids=[experiment.experiment_id],
+                filter_string=filter_query,
+                order_by=[f"metrics.{metric_name} {order_direction}"],
+                max_results=1
+            )
+        except MlflowException:
+            # Fails safely if the metric key doesn't exist in MLflow yet
+            return True
+            
         if not best_runs or metric_name not in best_runs[0].data.metrics:
             return True
             
