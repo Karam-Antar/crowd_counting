@@ -64,7 +64,11 @@ def get_existing_code_files():
     )
         
     absolute_files = []
+    excluded_folders = ('src/experiment/', 'src/utils/')
+    allowed_files = {'src/utils/helpers.py', 'src/utils/registries.py'}
     for f in git_output.splitlines():
+        # if f.startswith(excluded_folders) and f not in allowed_files:
+        #     continue
         full_path = (git_root_path / f).resolve()
         if full_path.exists() and full_path.suffix != '.ipynb':
             absolute_files.append(full_path)

@@ -1,22 +1,15 @@
 """General utility functions that don't fit into specialized modules."""
 from collections import defaultdict
 import datetime
-import glob
 import multiprocessing
 from pathlib import Path
 import re
-from PIL import Image
-import h5py
 import litlogger
-import numpy as np
 import torch
-import torch.nn as nn
-import lightning.pytorch as pl
-import optuna
 from src import config
 from src.data.transform import PadToMultiple
 
-def get_study_best_value(trial: optuna.Trial):
+def get_study_best_value(trial):
     """Get the best validation accuracy from the study."""
     best_value = -float("inf")
     try:

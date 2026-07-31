@@ -1,7 +1,5 @@
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict, Any
-import optuna
-
 from src import config
 from src.utils import helpers, registries
 
@@ -61,7 +59,7 @@ class BaseParams:
     extra: Dict = field(default_factory=dict)
 
     @classmethod
-    def suggest(cls, trial: optuna.Trial) -> "BaseParams":
+    def suggest(cls, trial) -> "BaseParams":
         suggested = dict(
             # 1. Architecture & Base Setup (Locked to your current experiment)
             model_class=trial.suggest_categorical('model_class', ['MAnet', 'Unet', 'UnetPlusPlus', 'DeepLabV3Plus']),
