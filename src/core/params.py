@@ -51,7 +51,7 @@ class BaseParams:
     suggested_params: bool = False
 
     # Properties not present in the suggest method (placed last)
-    epochs: int = 60
+    epochs: int = 80
     check_val_every_n_epoch: Optional[int] = 1
     padding_multiple: int = 32
     dataset: str = config.DATASET_PATH.split('/')[-1]
@@ -63,35 +63,54 @@ class BaseParams:
     @classmethod
     def suggest(cls, trial: optuna.Trial) -> "BaseParams":
         suggested = dict(
-            # Image & Data Augmentation
-            # image_size=trial.suggest_categorical("image_size", [512, 768, 1024]), # Adjust based on dataset
-            crop_size=trial.suggest_categorical("crop_size", [128, 256, 512]),
-            # aug_factor=trial.suggest_float("aug_factor", 0.0, 0.3),
-            # num_ops=trial.suggest_int("num_ops", 1, 4),
+            # 1. Architecture & Base Setup (Locked to your current experiment)
+            model_class=trial.suggest_categorical('model_class', ['MAnet', 'Unet', 'UnetPlusPlus', 'DeepLabV3Plus']),
+            backbone=trial.suggest_categorical('backbone', ['tu-convnext_small', 'tu-convnext_base', 'tu-convnextv2_small', 'tu-convnextv2_base', 'efficientnet-b2', 'efficientnet-b4', 'efficientnet-b6']), 
+            backbone_weights='imagenet',
+            decoder_out_channels=trial.suggest_categorical("decoder_out_channels", [64, 128, 256]),
+            
+            # 2. Memory & Scaling
+            # ConvNeXt is heavy. Keep batch sizes bounded so you don't OOM (Out Of Memory)
+            crop_size=trial.suggest_categorical("crop_size", [384, 480, 512]),
+            batch_size=trial.suggest_categorical("batch_size", [4, 8, 12]), 
+            val_batch_size=1,
 
-            # Architecture tweaks
-            backbone=trial.suggest_categorical("backbone", ['efficientnet-b0', 'efficientnet-b1', 'efficientnet-b2', 'efficientnet-b3', 'resnet34', 'resnet50']),
-            # trainable_backbone=trial.suggest_categorical("trainable_backbone", [True, False]),
-            # neck_out_channels=trial.suggest_categorical("neck_out_channels", [32, 64, 128]),
-            # dropout=trial.suggest_float("dropout", 0.0, 0.5),
-
-            # Training hardware/flow limits
-            batch_size=trial.suggest_categorical("batch_size", [2, 4, 8, 16, 32, 64]),     # Kept small for high-res density maps
-
-            # Optimization & Regularization
-            # lr=trial.suggest_float("lr", 1e-5, 1e-2, log=True),
-            # l2_reg=trial.suggest_float("l2_reg", 1e-5, 1e-2, log=True),
-            # lr_schedule=trial.suggest_categorical("lr_schedule", ['clipped_exp']),
+            # 3. Learning Rate & Scheduling
+            # Log scale is best for learning rates. Searches around your 0.00065 base.
+            lr=trial.suggest_float("lr", 1e-4, 2e-3, log=True),
+            lr_schedule='clipped_exp',
             scheduler_kwargs={
-                'decay_rate': trial.suggest_float("decay_rate", 0.88, 0.97),
-                'min_lr_pct': trial.suggest_float("min_lr_pct", 0.01, 0.1),
+                'decay_rate': trial.suggest_float("decay_rate", 0.90, 0.99),
+                'min_lr_pct': trial.suggest_float("min_lr_pct", 0.005, 0.05),
             },
 
-            # Flag indicating this was generated via Optuna
+            # 4. Composite Loss Parameters 
+            # Centered around your baseline: ssim=0.3, alpha=0.81, gamma=3.17, delta=5
+            loss_function='mask_mse_ssim',
+            ssim_weight=trial.suggest_float("ssim_weight", 0.1, 0.5),
+            mask_loss_weight=1.0,  # Anchor weight (keep fixed, tune others relative to this)
+            mask_loss_alpha=trial.suggest_float("mask_loss_alpha", 0.6, 0.95),
+            mask_loss_gamma=trial.suggest_float("mask_loss_gamma", 2.0, 4.0),
+            huber_delta=trial.suggest_float("huber_delta", 2.0, 13),
+            gt_mask_threshold=0,
+
+            # 5. Regularization (Optional but recommended for ConvNeXt)
+            dropout=trial.suggest_float("dropout", 0.0, 0.4),
+            l2_reg=trial.suggest_float("l2_reg", 1e-4, 1e-3, log=True),
+
             suggested_params=True
         )
+
+        # 6. Unfrozen Blocks Logic
+        # Wrapped in a try/except so Optuna doesn't crash if 'tu-convnext_small' 
+        # isn't explicitly mapped in your registries.UNFROZEN dictionary yet.
         unfrozen = trial.suggest_int("unfrozen", 0, 4)
-        suggested['unfrozen_blocks'] = registries.UNFROZEN.get(next(e for e in registries.UNFROZEN.keys() if str(e).startswith(suggested['backbone'])), [])[:unfrozen]
+        try:
+            backbone_key = next(e for e in registries.UNFROZEN.keys() if str(e).startswith(suggested['backbone']))
+            suggested['unfrozen_blocks'] = registries.UNFROZEN.get(backbone_key, [])[:unfrozen]
+        except StopIteration:
+            suggested['unfrozen_blocks'] = None
+
         return cls(**suggested)
     
     def to_dict(self, flatten=False, to_str=False, nested=True) -> Dict[str, Any]:

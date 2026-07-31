@@ -4,7 +4,7 @@ import optuna
 from optuna.integration import PyTorchLightningPruningCallback
 import torch
 import lightning.pytorch as pl
-
+import gc
 from src.models.lit_model import BaseLitModel
 from src.core.params import BaseParams
 from src.utils.experiment_trackers import BaseTracker, MLFlowTracker
@@ -100,16 +100,27 @@ class OptunaTuner(BaseExperimentRunner):
                 best_payload = payload
             
             self.tracker.end_run('success')
+            del self.params
+            del payload
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
             return target_metric_value
 
         study_direction = "maximize" if self.monitor_mode == "max" else "minimize"
-        db_url = os.environ.get('OPTUNA_DB_URL', 'sqlite:///optuna.db')
+        # db_url = os.environ.get('OPTUNA_DB_URL', 'sqlite:///optuna.db')
+        db_url = 'sqlite:///:memory:'
         study = optuna.create_study(
             study_name=study_name,
             storage=db_url,
             load_if_exists=True,
             direction=study_direction,
-            sampler=optuna.samplers.TPESampler(seed=config.SEED),
+            sampler=optuna.samplers.TPESampler(seed=config.SEED, multivariate=True),
+            pruner=optuna.pruners.HyperbandPruner(
+                min_resource=10,              # <--- Wait 3 epochs before judging a trial
+                max_resource=self.params_cls().epochs, 
+                reduction_factor=3
+            )
         )
 
         # Execute optimization loop
