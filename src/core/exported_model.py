@@ -63,7 +63,7 @@ class ExportedModel:
 
 
     @torch.no_grad()
-    def evaluate(self, data: Union[DataLoader, CrowdDataModule]) -> Dict[str, float]:
+    def evaluate(self, data: Union[DataLoader, "CrowdDataModule"]) -> Dict[str, float]:
         if isinstance(data, pl.LightningDataModule):
             data.setup(stage="test")
             loader = data.test_dataloader() or data.final_val_dataloader()
@@ -81,23 +81,27 @@ class ExportedModel:
         # Ensure model is in eval mode
         self.model.eval()
         
+        # Safely extract the device type string ('cuda' or 'cpu') for autocast
+        device_type = self.device.type if isinstance(self.device, torch.device) else torch.device(self.device).type
+
         for batch in loader:
             # Unpack dynamic batch including original sizes
-            # torch.cuda.empty_cache()
             x, y, orig_sizes = batch
             x, y = x.to(self.device), y.to(self.device)
             
-            # 2. Forward Pass
-            if getattr(self.model.params, 'loss_function', '') == 'mask_mse_ssim':
-                pred_density, mask_logits = self.model(x, return_mask=True)
-                mask_probs = torch.sigmoid(mask_logits)
-                gt_mask = (y > 0).float()
-            else:
-                pred_density = self.model(x, return_mask=False)
-                mask_probs = None
-                gt_mask = None
+            # 2. Forward Pass wrapped in Mixed Precision (bf16)
+            with torch.autocast(device_type=device_type, dtype=torch.bfloat16):
+                if getattr(self.model.params, 'loss_function', '') == 'mask_mse_ssim':
+                    pred_density, mask_logits = self.model(x, return_mask=True)
+                    mask_probs = torch.sigmoid(mask_logits)
+                    gt_mask = (y > 0).float()
+                else:
+                    pred_density = self.model(x, return_mask=False)
+                    mask_probs = None
+                    gt_mask = None
 
-            # 3. Unpad outputs for accurate evaluation
+            # 3. Unpad outputs for accurate evaluation 
+            # (These operations and metric calculations will happen in standard precision)
             pred_counts = []
             gt_counts = []
             
@@ -110,15 +114,16 @@ class ExportedModel:
                 real_pred = pred_density[i, ..., :h, :w]
                 real_gt = y[i, ..., :h, :w]
                 
-                pred_counts.append(torch.sum(real_pred))
-                gt_counts.append(torch.sum(real_gt))
+                # Using float() here ensures we accumulate counts in fp32 to avoid bf16 precision limits on large sums
+                pred_counts.append(torch.sum(real_pred).float())
+                gt_counts.append(torch.sum(real_gt).float())
                 
                 if mask_probs is not None:
                     real_mask_prob = mask_probs[i, ..., :h, :w]
                     real_gt_mask = gt_mask[i, ..., :h, :w]
                     
-                    unpadded_mask_probs.append(real_mask_prob.flatten())
-                    unpadded_gt_masks.append(real_gt_mask.flatten())
+                    unpadded_mask_probs.append(real_mask_prob.flatten().float())
+                    unpadded_gt_masks.append(real_gt_mask.flatten().float())
                     
             # 4. Stack counts
             pred_count_tensor = torch.stack(pred_counts)

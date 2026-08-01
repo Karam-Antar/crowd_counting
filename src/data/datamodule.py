@@ -12,24 +12,29 @@ from src.data.transform import CustomRandomCrop, FiveCropCollate, PadToMultiple,
 from tqdm import tqdm
 
 class DatasetTransformWrapper(torch.utils.data.Dataset):
-    def __init__(self, subset, transform_fn, pre_transform=False):
+    def __init__(self, subset, transform_fn, pre_transform=False, device='cuda'):
         self.subset = subset
         self.transform_fn = transform_fn
         self.pre_transform = pre_transform
+        self.device = device
         self.preloaded_data = []
         
         if self.pre_transform:
-            print(f"Pre-transforming {len(subset)} validation samples into RAM...")
+            print(f"Pre-transforming {len(subset)} validation samples directly into VRAM ({self.device})...")
             for i in tqdm(range(len(self.subset))):
                 x, y = self.subset[i]
                 if self.transform_fn:
                     x, y = self.transform_fn(x, y)
-                # Store the fully processed float32 tensors
+                
+                # Move the fully processed float32 tensors to the GPU
+                x = x.to(self.device)
+                y = y.to(self.device)
+                
                 self.preloaded_data.append((x, y))
         
     def __getitem__(self, index):
         if self.pre_transform:
-            # 100% CPU-free fetch during training
+            # 100% CPU-free and PCIe-free fetch during validation
             return self.preloaded_data[index]
             
         x, y = self.subset[index]
@@ -213,7 +218,7 @@ class CrowdDataModule(pl.LightningDataModule):
             )
 
     def train_dataloader(self):
-        return DataLoader(self.train_ds, batch_size=self.params.batch_size, shuffle=True, num_workers=8, pin_memory=True)
+        return DataLoader(self.train_ds, batch_size=self.params.batch_size, shuffle=True, num_workers=20, pin_memory=True)
     
     def val_dataloader(self):
         """Cheaper validation during training utilizing FiveCrop."""
@@ -221,11 +226,11 @@ class CrowdDataModule(pl.LightningDataModule):
             return DataLoader(
                 self.five_crops_val_ds, 
                 batch_size=self.params.val_batch_size or 4, 
-                num_workers=12, 
-                pin_memory=True, 
+                num_workers=0, 
+                pin_memory=False, 
                 collate_fn=FiveCropCollate(self.params.padding_multiple)
             )
-        return DataLoader(self.val_ds, batch_size=self.params.val_batch_size or 4, num_workers=12, pin_memory=True, collate_fn=DynamicPadCollate(self.params.padding_multiple))
+        return DataLoader(self.val_ds, batch_size=self.params.val_batch_size or 4, num_workers=0, pin_memory=False, collate_fn=DynamicPadCollate(self.params.padding_multiple))
 
     def test_dataloader(self):
         return DataLoader(self.test_ds or self.val_ds, batch_size=self.params.val_batch_size or 4, num_workers=4, pin_memory=True, collate_fn=DynamicPadCollate(self.params.padding_multiple))

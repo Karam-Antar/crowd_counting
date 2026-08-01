@@ -50,6 +50,7 @@ class BaseParams:
 
     # Properties not present in the suggest method (placed last)
     epochs: int = 80
+    stop_patience: int = 45
     check_val_every_n_epoch: Optional[int] = 1
     padding_multiple: int = 32
     dataset: str = config.DATASET_PATH.split('/')[-1]
@@ -62,7 +63,7 @@ class BaseParams:
     def suggest(cls, trial) -> "BaseParams":
         suggested = dict(
             # 1. Architecture & Base Setup (Locked to your current experiment)
-            model_class=trial.suggest_categorical('model_class', ['MAnet', 'Unet', 'UnetPlusPlus', 'DeepLabV3Plus']),
+            model_class=trial.suggest_categorical('model_class', ['MAnet', 'Unet', 'UnetPlusPlus']),
             backbone=trial.suggest_categorical('backbone', ['tu-convnext_small', 'tu-convnext_base', 'tu-convnextv2_small', 'tu-convnextv2_base', 'efficientnet-b2', 'efficientnet-b4', 'efficientnet-b6']), 
             backbone_weights='imagenet',
             decoder_out_channels=trial.suggest_categorical("decoder_out_channels", [64, 128, 256]),
@@ -86,7 +87,7 @@ class BaseParams:
             # Centered around your baseline: ssim=0.3, alpha=0.81, gamma=3.17, delta=5
             loss_function='mask_mse_ssim',
             ssim_weight=trial.suggest_float("ssim_weight", 0.1, 0.5),
-            mask_loss_weight=1.0,  # Anchor weight (keep fixed, tune others relative to this)
+            mask_loss_weight=trial.suggest_float("mask_loss_weight", 0.5, 1.0),  # Anchor weight (keep fixed, tune others relative to this)
             mask_loss_alpha=trial.suggest_float("mask_loss_alpha", 0.6, 0.95),
             mask_loss_gamma=trial.suggest_float("mask_loss_gamma", 2.0, 4.0),
             huber_delta=trial.suggest_float("huber_delta", 2.0, 13),
