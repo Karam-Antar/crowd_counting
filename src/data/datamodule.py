@@ -16,19 +16,19 @@ class DatasetTransformWrapper(torch.utils.data.Dataset):
         self.subset = subset
         self.transform_fn = transform_fn
         self.pre_transform = pre_transform
-        self.device = device
+        # self.device = device
         self.preloaded_data = []
         
         if self.pre_transform:
-            print(f"Pre-transforming {len(subset)} validation samples directly into VRAM ({self.device})...")
+            print(f"Pre-transforming {len(subset)} validation samples directly into RAM")
             for i in tqdm(range(len(self.subset))):
                 x, y = self.subset[i]
                 if self.transform_fn:
                     x, y = self.transform_fn(x, y)
                 
-                # Move the fully processed float32 tensors to the GPU
-                x = x.to(self.device)
-                y = y.to(self.device)
+                # # Move the fully processed float32 tensors to the GPU
+                # x = x.to(self.device)
+                # y = y.to(self.device)
                 
                 self.preloaded_data.append((x, y))
         
@@ -218,7 +218,7 @@ class CrowdDataModule(pl.LightningDataModule):
             )
 
     def train_dataloader(self):
-        return DataLoader(self.train_ds, batch_size=self.params.batch_size, shuffle=True, num_workers=20, pin_memory=True)
+        return DataLoader(self.train_ds, batch_size=self.params.batch_size, shuffle=True, num_workers=8, pin_memory=True)
     
     def val_dataloader(self):
         """Cheaper validation during training utilizing FiveCrop."""
@@ -226,11 +226,11 @@ class CrowdDataModule(pl.LightningDataModule):
             return DataLoader(
                 self.five_crops_val_ds, 
                 batch_size=self.params.val_batch_size or 4, 
-                num_workers=0, 
-                pin_memory=False, 
+                num_workers=12, 
+                pin_memory=True, 
                 collate_fn=FiveCropCollate(self.params.padding_multiple)
             )
-        return DataLoader(self.val_ds, batch_size=self.params.val_batch_size or 4, num_workers=0, pin_memory=False, collate_fn=DynamicPadCollate(self.params.padding_multiple))
+        return DataLoader(self.val_ds, batch_size=self.params.val_batch_size or 4, num_workers=12, pin_memory=True, collate_fn=DynamicPadCollate(self.params.padding_multiple))
 
     def test_dataloader(self):
         return DataLoader(self.test_ds or self.val_ds, batch_size=self.params.val_batch_size or 4, num_workers=4, pin_memory=True, collate_fn=DynamicPadCollate(self.params.padding_multiple))
