@@ -210,20 +210,40 @@ def get_sample_from_dm(datamodule, index=0):
     
     return sample_image, target, gt_count
 
-# def get_sample_from_ds(img_path=None, h5_path=None, index=0):
-#     # Load Image
-#     if not img_path:
-#         img_path = glob.glob(f"{config.TRAIN_PATH}/images/*.jpg")[index]
-#         h5_path = img_path.replace("images", "ground-truth-h5").rsplit('_', 1)[0] + '.h5'
-#     img = Image.open(img_path).convert('RGB')
+def get_sample_from_ds(image_path, gt_dir, transform=None):
+    """
+    Standalone function to load an image and its corresponding ground truth .npy file.
+    Assumes the .npy file has the exact same base name as the image.
+    """
+    import os
+    import numpy as np
+    import torch
+    from PIL import Image
+    from torchvision import tv_tensors
+    # 1. Deduce the GT path from the image filename
+    # base_name = os.path.basename(image_path)                  # e.g., "image_01.jpg"
+    # file_name_without_ext = os.path.splitext(base_name)[0]    # e.g., "image_01"
+    gt_path = gt_dir
     
-#     # Load Density Map
-#     with h5py.File(h5_path, 'r') as hf:
-#         density_map = np.asarray(hf['density'])
+    if not os.path.exists(gt_path):
+        raise FileNotFoundError(f"Expected ground truth file not found: {gt_path}")
+
+    # 2. Load and convert Image
+    with Image.open(image_path) as img:
+        img_tensor = tv_tensors.Image(img.convert('RGB'))
     
-#     # Calculate Ground Truth Count
-#     gt_count = np.sum(density_map)
-#     return img, density_map, gt_count
+    # 3. Load and convert Ground Truth (NPY)
+    target_array = np.load(gt_path)
+    target_tensor = tv_tensors.Mask(
+        torch.from_numpy(target_array).float().unsqueeze(0)
+    )
+    gt_count = target_tensor.sum().item()
+
+    # 4. Apply Transforms if provided
+    if transform:
+        img_tensor, target_tensor = transform(img_tensor, target_tensor)
+
+    return img_tensor, target_tensor, gt_count
 
 def transform_sample(img, params):
     import timm
