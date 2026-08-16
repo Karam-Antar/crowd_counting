@@ -217,18 +217,24 @@ def visualize_feature_maps(model, history, layer_name, filter_index=None, input_
     visualize_feature_maps_grid(history[layer_name].activation, layer_name, cmap, filter_index)
 
 
-def visualize_model_graph(model: torch.nn.Module, datamodule=None, sample=None):
+def visualize_model_graph(model: torch.nn.Module, datamodule=None, sample=None, options=None):
     if sample is None:
         if datamodule is None:
             raise ValueError('Either sample or datamodule should be provided.')
         sample, _, _ = helpers.get_sample_from_dm(datamodule)
     # history = torchlens.log_forward_pass(model, helpers.get_sample_from_dm(datamodule))
     try: 
+        if options is None:
+            from torchlens.options import VisualizationOptions
+            options = VisualizationOptions(
+                view="unrolled",
+                direction="topdown",
+                depth=2,
+            )
         graph = torchlens.visualization.show_model_graph(
             model, 
             sample, 
-            vis_mode='unrolled',
-            vis_direction='topdown',
+            visualization=options,
         )
     except Exception as e:
         print(e)
