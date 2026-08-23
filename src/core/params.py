@@ -49,7 +49,7 @@ class BaseParams:
     suggested_params: bool = False
 
     # Properties not present in the suggest method (placed last)
-    epochs: int = 80
+    epochs: int = 1
     stop_patience: int = 45
     check_val_every_n_epoch: Optional[int] = 1
     padding_multiple: int = 32
