@@ -9,7 +9,6 @@ from lightning.pytorch.callbacks import LearningRateMonitor
 from src.data.datamodule import CrowdDataModule
 from src.models.lit_model import BaseLitModel
 from src.core.params import BaseParams
-from src.core.callbacks import ReseedCallback
 from src.utils.experiment_trackers import BaseTracker
 from src.utils.model_registry import BaseRegistry
 from src.utils.model_registry.utils import ModelPayload
