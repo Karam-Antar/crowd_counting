@@ -1,6 +1,6 @@
 import sys
 
-sys.path.append('/teamspace/studios/this_studio/workspace/crowd_counting/')
+sys.path.append('/home/jl_fs/workspace/projects/crowd_counting/')
 
 import lightning.pytorch as pl
 import torch

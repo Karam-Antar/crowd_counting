@@ -85,8 +85,8 @@ class BaseExperimentRunner(ABC):
             gradient_clip_val=self.params.grad_clip,
             check_val_every_n_epoch=self.params.check_val_every_n_epoch,
             # log_every_n_steps=1,
-            limit_train_batches=1,
-            limit_val_batches=1,
+            # limit_train_batches=1,
+            # limit_val_batches=1,
         )
 
         trainer.fit(lit_model, datamodule=self.datamodule)
