@@ -5,7 +5,6 @@ from src import config
 from src.core.exported_model import ExportedModel
 from src.core.params import BaseParams
 from src.models.lit_model import BaseLitModel
-from src.utils.model_persistence import load_model
 from src.utils.model_registry.utils import ModelPayload
 
 
@@ -16,10 +15,7 @@ class BaseRegistry(ABC):
         self.experiment_name = experiment_name
         self.tracker = tracker
 
-    # @abstractmethod
-    # def model_exists(self, model_name: str) -> bool:
-    #     """Checks if a model already exists in the registry to prevent duplicate runs."""
-    #     pass
+
 
     @abstractmethod
     def upload_model(self, payload: ModelPayload):
@@ -31,29 +27,7 @@ class BaseRegistry(ABC):
         """Downloads the model directory and returns (list_of_relative_paths, local_download_dir)."""
         pass
 
-    # --- Shared Loading Methods ---
-    # @abstractmethod
-    def load_model_from_ckpt(self, model_name: str, model_cls: type[BaseLitModel]):
-        pass
-        # downloaded_paths, download_dir = self.download_model(model_name)
-        # ckpt_relative_path = next((p for p in downloaded_paths if p.casefold().endswith('.ckpt')), None)
 
-        # if not ckpt_relative_path:
-        #     raise FileNotFoundError("No .ckpt file found in the downloaded model artifacts!")
-        # return model_cls.load_from_checkpoint(f'{download_dir}/{ckpt_relative_path}', weights_only=False)
-    
-    # @abstractmethod
-    def load_params(self, downloaded_paths: list[str], download_dir: str):
-        pass
-        # params_relative_path = next((p for p in downloaded_paths if p.casefold().endswith(config.PARAMS_SAVE_FILENAME)), None)
-        # if not params_relative_path:
-        #     raise FileNotFoundError("No params file found in the downloaded model artifacts!")
-            
-        # try:
-        #     return BaseParams.from_json(f'{download_dir}/{params_relative_path}')
-        # except Exception as e:
-        #     print(e)
-        #     raise e
         
     @abstractmethod
     def load_model(self, model_name: str, **kwargs):

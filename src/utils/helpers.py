@@ -115,56 +115,8 @@ def get_unique_experiment_name(base_name):
     return f"{base_name}_{timestamp}"
 
 
-def create_empty_text_files(target_path: str, file_names: list[str]):
-    """
-    Creates empty .txt files for each string in a list at a specific path.
-    
-    Args:
-        file_names (list): List of strings to be used as filenames.
-        target_path (str): The directory where files should be created.
-    """
-    # 1. Convert the string path to a Path object and create it if it doesn't exist
-    directory = Path(target_path)
-    directory.mkdir(parents=True, exist_ok=True)
-    
-    for name in file_names:
-        # 2. Ensure the filename ends with .txt
-        if not name.endswith('.txt'):
-            filename = f"{name}.txt"
-        else:
-            filename = name
-            
-        # 3. Join the directory with the filename
-        file_path = directory / filename
-        
-        # 4. Create the empty file
-        file_path.touch()
-        # print(f"Created: {file_path}")
 
-def generate_file_names(metrics: dict):
-    # 1. Group metrics by their phase ('val' or 'train')
-    grouped_metrics = defaultdict(dict)
-    
-    for k, v in metrics.items():
-        # Example k: "best_val_MAE" -> splits into ["best", "val", "MAE"]
-        parts = k.split('_', 2) 
-        
-        if len(parts) >= 3 and parts[0] == "best":
-            phase = parts[1]         # 'val' or 'train'
-            metric_name = parts[2]   # 'loss', 'MAE', 'MSE', etc.
-            
-            grouped_metrics[phase][metric_name] = v
 
-    # 2. Build the formatted strings
-    names = set()
-    for phase, phase_metrics in grouped_metrics.items():
-        # Dynamically build the inner string: e.g., "(loss=0.0123)(MAE=4.5678)"
-        stats_str = "".join([f"({m_name}={float(m_val):.4f})" for m_name, m_val in phase_metrics.items()])
-        
-        # Combine phase and stats: e.g., "val(loss=0.0123)(MAE=4.5678)"
-        names.add(f"{phase}{stats_str}")
-
-    return list(names)
 
 
 def to_snake_case(name: str) -> str:

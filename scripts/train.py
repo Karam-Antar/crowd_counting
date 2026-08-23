@@ -1,20 +1,15 @@
 
-import os
 import sys
 sys.path.append('/teamspace/studios/this_studio/workspace/crowd_counting/')
 # print(sys.path)
 from src.experiment.optuna_tuner import OptunaTuner
 from src.utils.experiment_trackers import MLFlowTracker
-from typing import Optional
 import torch
 import lightning.pytorch as pl
 # import mlflow
-from pathlib import Path
-from src.models.lit_model import BaseLitModel
 from src.core.params import BaseParams
 from src.experiment import StandardRunner
 from src.models.model import CrowdCounter
-from src.data.datamodule import CrowdDataModule
 
 # Set random seeds for reproducibility
 from src import config

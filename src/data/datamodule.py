@@ -7,7 +7,7 @@ import os
 from torchvision import tv_tensors
 from src import config
 from src.core.params import BaseParams
-from src.data.dataset import CustomDataset, EnsemblePathWrapper
+from src.data.dataset import CustomDataset
 from src.data.transform import CustomRandomCrop, FiveCropCollate, PadToMultiple, SafePhotometricRandAugment, DynamicPadCollate
 from tqdm import tqdm
 
@@ -239,29 +239,3 @@ class CrowdDataModule(pl.LightningDataModule):
         """Used ONLY for evaluating the training set cleanly."""
         return DataLoader(self.train_eval_ds, batch_size=self.params.val_batch_size or 4, shuffle=False, num_workers=12, collate_fn=DynamicPadCollate(self.params.padding_multiple))
     
-    def ensemble_val_dataloader(self):
-        """Returns raw file paths and ground truths for Ensemble evaluation."""
-        # self.val_ds is your DatasetTransformWrapper. 
-        # We pass its underlying .subset to our new PathWrapper to bypass transforms.
-        path_ds = EnsemblePathWrapper(self.val_ds.subset)
-        
-        def path_collate(batch):
-            paths = [item[0] for item in batch]
-            # Stack masks if they exist
-            masks = torch.stack([item[1] for item in batch]) if batch[0][1] is not None else None
-            return paths, masks
-            
-        return DataLoader(path_ds, batch_size=1, num_workers=4, collate_fn=path_collate)
-
-    def ensemble_test_dataloader(self):
-        """Returns raw file paths and ground truths for the test set."""
-        # If test_ds is an instance of CustomDataset (not wrapped), we pass it directly
-        subset = getattr(self.test_ds, 'subset', self.test_ds)
-        path_ds = EnsemblePathWrapper(subset)
-        
-        def path_collate(batch):
-            paths = [item[0] for item in batch]
-            masks = torch.stack([item[1] for item in batch]) if batch[0][1] is not None else None
-            return paths, masks
-            
-        return DataLoader(path_ds, batch_size=1, num_workers=4, collate_fn=path_collate)

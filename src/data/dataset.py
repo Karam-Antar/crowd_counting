@@ -53,28 +53,3 @@ class CustomDataset(Dataset):
             img, target = self.transform(img, target)
 
         return img, target
-
-
-class EnsemblePathWrapper(torch.utils.data.Dataset):
-    def __init__(self, subset):
-        self.subset = subset
-        
-    def __getitem__(self, index):
-        # Handle torch.utils.data.Subset (created by random_split)
-        if isinstance(self.subset, torch.utils.data.Subset):
-            dataset = self.subset.dataset
-            real_index = self.subset.indices[index]
-        else:
-            dataset = self.subset
-            real_index = index
-            
-        # 1. Get the path directly from your CustomDataset
-        img_path = dataset.img_paths[real_index]
-        
-        # 2. Get the ground truth mask by calling the underlying dataset
-        _, mask = dataset[real_index]
-        
-        return img_path, mask
-        
-    def __len__(self):
-        return len(self.subset)

@@ -99,50 +99,6 @@ class CountPenaltyLoss(nn.Module):
                      
         return total_loss
 
-# class MaskMSESSIMLoss(nn.Module):
-#     def __init__(self, params: BaseParams):
-#         super().__init__()
-#         self.mse = nn.HuberLoss(delta=params.huber_delta)
-#         self.mask_loss_fn = smp.losses.FocalLoss(
-#             mode='binary',
-#             alpha=0.75,
-#             gamma=2.0
-#         )
-#         # self.bg_penalty_weight = bg_penalty_weight
-        
-#         # 4 learnable parameters for [MSE, SSIM, Mask, Background Penalty]
-#         # Kendall et al. uncertainty parameters (initialized to 0 -> exp(0) = 1)
-#         self.log_vars = nn.Parameter(torch.zeros(3))
-#         self.label_scaler = params.label_scaler
-
-#     def forward(self, pred_density, mask_logits, gt_density):
-#         # 1. Density Loss (Huber)
-#         raw_mse = self.mse(pred_density, gt_density)
-        
-#         # 2. SSIM Loss with FIXED data_range to prevent gradient explosion on zero-density images
-#         # 0.5 is standard for normalized density map peaks; keep fixed across all batches
-#         max_val = torch.clamp(gt_density.max(), min=1e-5)
-#         ssim_score = structural_similarity_index_measure(pred_density, gt_density, data_range=max_val)
-#         raw_ssim = 1.0 - ssim_score
-        
-#         # 3. Mask Loss with Thresholded Gaussian Tails
-#         gt_mask = (gt_density > 0).float()  # Cut off Gaussian tails
-        
-#         if mask_logits is not None:
-#             raw_mask = self.mask_loss_fn(mask_logits, gt_mask)
-#         else:
-#             raw_mask = torch.tensor(0.0, device=pred_density.device)
-
-
-#         # --- Kendall Uncertainty Weighting Formulation ---
-#         # Formula: 0.5 * exp(-log_var) * Loss + 0.5 * log_var
-#         loss_mse = 0.5 * torch.exp(-self.log_vars[0]) * raw_mse + 0.5 * self.log_vars[0]
-#         loss_ssim = 0.5 * torch.exp(-self.log_vars[1]) * raw_ssim + 0.5 * self.log_vars[1]
-#         loss_mask = 0.5 * torch.exp(-self.log_vars[2]) * raw_mask + 0.5 * self.log_vars[2]
-
-#         total_loss = loss_mse + loss_ssim + loss_mask
-            
-#         return total_loss
 
 
 class MaskMSESSIMLoss(nn.Module):

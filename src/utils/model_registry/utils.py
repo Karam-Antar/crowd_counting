@@ -18,7 +18,6 @@ from src import config
 from src.core.params import BaseParams
 from src.utils import helpers
 from src.utils.experiment_trackers import BaseTracker
-from src.utils.model_persistence import save_model
 
 
 # --- Data Structures ---
