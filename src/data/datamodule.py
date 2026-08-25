@@ -175,7 +175,7 @@ class CrowdDataModule(pl.LightningDataModule):
             full_train_ds = CustomDataset(
                 img_dir=os.path.join(train_path, "images"),
                 gt_dir=os.path.join(train_path, "ground-truth-npy"),
-                preload_to_ram=True,
+                preload_to_ram=False,
             )
             
             # 2. Check for the existence of the 'val' folder
@@ -185,7 +185,7 @@ class CrowdDataModule(pl.LightningDataModule):
                 val_subset = CustomDataset(
                     img_dir=os.path.join(val_path, "images"),
                     gt_dir=os.path.join(val_path, "ground-truth-npy"),
-                    preload_to_ram=True
+                    preload_to_ram=False
                 )
                 train_subset = full_train_ds
             else:

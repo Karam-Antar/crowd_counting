@@ -68,22 +68,22 @@ class BaseLitModel(pl.LightningModule):
         # Forward Pass
         if self.params.loss_function == 'mask_mse_ssim':
             pred_density, mask_logits = self.model(x, return_mask=True)
-            loss = self.criterion(pred_density, mask_logits, y)
+            loss, loss_dict = self.criterion(pred_density, mask_logits, y)
             
             mask_probs = torch.sigmoid(mask_logits)
             gt_mask = (y > 0).float()
         else:
             pred_density = self.model(x, return_mask=False)
             loss = self.criterion(pred_density, y)
-            
-        return loss, pred_density, mask_probs, gt_mask
+            loss_dict = None
+        return loss, pred_density, mask_probs, gt_mask, loss_dict
 
     def training_step(self, batch, batch_idx):
         # 1. Unpack standard training batch (Cropped uniformly, no sizes passed)
         x, y = batch 
         
         # 2. Run shared logic
-        loss, pred_density, mask_probs, gt_mask = self._shared_step(x, y)
+        loss, pred_density, mask_probs, gt_mask, loss_dict = self._shared_step(x, y)
             
         # 3. Sum counts directly (No unpadding needed for training)
         pred_count = torch.sum(pred_density, dim=(1, 2, 3)) / self.params.label_scaler
@@ -97,7 +97,9 @@ class BaseLitModel(pl.LightningModule):
         if mask_probs is not None and gt_mask is not None:
             self.train_mask_metrics(mask_probs, gt_mask)
             self.log_dict(self.train_mask_metrics, on_step=False, on_epoch=True, prog_bar=True)
-            
+            if loss_dict:
+                train_loss_logs = {f"train_{k}": v for k, v in loss_dict.items()}
+                self.log_dict(train_loss_logs, on_step=False, on_epoch=True, prog_bar=False)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -105,7 +107,7 @@ class BaseLitModel(pl.LightningModule):
         x, y, orig_sizes = batch
         
         # 2. Run shared logic (Loss is computed safely on padded tensors)
-        loss, pred_density, mask_probs, gt_mask = self._shared_step(x, y)
+        loss, pred_density, mask_probs, gt_mask, loss_dict = self._shared_step(x, y)
 
         # 3. Unpad outputs for accurate evaluation
         pred_counts = []
@@ -147,6 +149,9 @@ class BaseLitModel(pl.LightningModule):
             
             self.val_mask_metrics(batch_mask_probs, batch_gt_masks)
             self.log_dict(self.val_mask_metrics, on_step=False, on_epoch=True, prog_bar=True)
+            if loss_dict:
+                val_loss_logs = {f"val_{k}": v for k, v in loss_dict.items()}
+                self.log_dict(val_loss_logs, on_step=False, on_epoch=True, prog_bar=False)
 
     def configure_optimizers(self):
         # 1. Group parameters

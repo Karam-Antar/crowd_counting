@@ -131,6 +131,15 @@ class MaskMSESSIMLoss(nn.Module):
         loss_ssim = (raw_ssim * torch.exp(-self.log_vars[1])) + self.log_vars[1]
         
         total_loss = loss_mse + loss_ssim
+        # Prepare loss dictionary to track individual parts
+        loss_dict = {
+            'loss_mse': loss_mse,
+            'loss_ssim': loss_ssim,
+            'raw_mse': raw_mse,
+            'raw_ssim': raw_ssim,
+            'log_var_mse': self.log_vars[0],
+            'log_var_ssim': self.log_vars[1],
+        }
         
         if mask_logits is not None:
             gt_mask = (gt_density > self.gt_mask_threshold).float()
@@ -140,8 +149,11 @@ class MaskMSESSIMLoss(nn.Module):
             # print(f"MSE: {raw_mse.item():.4f} | SSIM: {raw_ssim.item():.4f} | Mask: {raw_mask.item():.4f}")
             # print(f"Scaled MSE: {loss_mse.item():.4f} | Scaled SSIM: {loss_ssim.item():.4f} | Scaled Mask: {loss_mask.item():.4f}")
             # print()
+            loss_dict['loss_mask'] = loss_mask
+            loss_dict['raw_mask'] = raw_mask
+            loss_dict['log_var_mask'] = self.log_vars[2]
             
-        return total_loss
+        return total_loss, loss_dict
 
 
 
