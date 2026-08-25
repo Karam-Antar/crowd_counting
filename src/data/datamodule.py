@@ -12,7 +12,7 @@ from src.data.transform import CustomRandomCrop, FiveCropCollate, PadToMultiple,
 from tqdm import tqdm
 
 class DatasetTransformWrapper(torch.utils.data.Dataset):
-    def __init__(self, subset, transform_fn, pre_transform=False, device='cuda'):
+    def __init__(self, subset, transform_fn, pre_transform=False, device='cpu'):
         self.subset = subset
         self.transform_fn = transform_fn
         self.pre_transform = pre_transform
@@ -202,10 +202,10 @@ class CrowdDataModule(pl.LightningDataModule):
             self.train_ds = DatasetTransformWrapper(train_subset, self.apply_train_transforms)
             # for val_dataloader
             if self.params.five_crops:
-                self.five_crops_val_ds = DatasetTransformWrapper(val_subset, self.apply_five_crop_transforms, pre_transform=True)
+                self.five_crops_val_ds = DatasetTransformWrapper(val_subset, self.apply_five_crop_transforms, pre_transform=False)
             # for final_val_dataloader
             else:
-                self.val_ds = DatasetTransformWrapper(val_subset, self.apply_test_transforms, pre_transform=True)
+                self.val_ds = DatasetTransformWrapper(val_subset, self.apply_test_transforms, pre_transform=False)
             self.train_eval_ds = DatasetTransformWrapper(train_subset, self.apply_test_transforms)
 
         if stage == "test" or stage is None:
