@@ -187,20 +187,38 @@ class BaseLitModel(pl.LightningModule):
 
     
     def _get_param_groups(self):
-        """Splits model parameters into backbone and head groups with different LRs."""
+        """Splits model parameters into backbone, head, and loss groups."""
         backbone_params = []
         head_params = []
+        loss_params = []
         
-        for name, param in self.model.named_parameters():
-            if 'backbone' in name or 'encoder' in name:
+        # FIX: Change self.model.named_parameters() to self.named_parameters()
+        # This ensures it searches the ENTIRE LightningModule, including self.criterion
+        for name, param in self.named_parameters():
+            if 'criterion' in name or 'log_vars' in name:
+                # Catch the learnable loss weights
+                loss_params.append(param)
+            elif 'backbone' in name or 'encoder' in name:
+                # Catch the backbone/encoder
                 backbone_params.append(param)
             else:
+                # Catch everything else (the prediction head, etc.)
                 head_params.append(param)
 
-        return [
+        param_groups = [
             {'params': backbone_params, 'lr': self.params.lr * 0.1}, 
             {'params': head_params, 'lr': self.params.lr}            
         ]
+        
+        # Add the loss parameters if they exist
+        if loss_params:
+            param_groups.append({
+                'params': loss_params, 
+                'lr': self.params.lr, 
+                'weight_decay': 0.0  # Best practice: don't apply weight decay to loss variances
+            })
+
+        return param_groups
     
     def _get_scheduler_config(self, optimizer):
         """Returns the Lightning scheduler dictionary based on config, or None."""
