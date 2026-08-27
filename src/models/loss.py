@@ -3,7 +3,6 @@ import torch.nn as nn
 from torchmetrics.functional.image import structural_similarity_index_measure
 import segmentation_models_pytorch as smp
 from src.core.params import BaseParams
-import math
 
 class MSESSIMLoss(nn.Module):
     def __init__(self, params: BaseParams):
@@ -114,33 +113,11 @@ class MaskMSESSIMLoss(nn.Module):
         self.ssim_weight = params.ssim_weight
         self.mse_weight = 1-self.ssim_weight
         self.mask_loss_weight = params.mask_loss_weight
+        # self.use_uncertainty = params.use_uncertainty_weighting
         # 3 learnable parameters for MSE, SSIM, and Mask
         # Initialized to 0 (since they represent log(variance))
-        # --- OPTIMIZED INITIALIZATION ---
-        # Replace these dummy values with the actual raw loss values you 
-        # usually see at the very first training step before any learning happens.
-        expected_init_mse = 0.05   # Example value
-        expected_init_ssim = 0.20  # Example value
-        expected_init_mask = 0.50  # Example value
-        
-        self.log_vars = nn.Parameter(torch.zeros(3, dtype=torch.float32))
-        
-        # Track initialization state (saved/restored with checkpoints)
-        self.register_buffer('_initialized', torch.tensor(False))
-        # self.log_vars = nn.Parameter(torch.tensor([1.0, 0.0, -1.0], dtype=torch.float32))
+        self.log_vars = nn.Parameter(torch.tensor([1.0, 0.0, -1.0], dtype=torch.float32)) if params.use_uncertainty_weighting else None
         self.gt_mask_threshold = params.gt_mask_threshold
-    
-    def _auto_init(self, raw_mse: torch.Tensor, raw_ssim: torch.Tensor, raw_mask: torch.Tensor):
-        """Automatically sets initial log_vars based on the first batch's raw losses."""
-        with torch.no_grad():
-            # Clamp raw losses slightly above zero to avoid log(0)
-            init_mse = torch.log(torch.clamp(raw_mse.detach(), min=1e-4))
-            init_ssim = torch.log(torch.clamp(raw_ssim.detach(), min=1e-4))
-            init_mask = torch.log(torch.clamp(raw_mask.detach(), min=1e-4))
-            
-            initial_values = torch.stack([init_mse, init_ssim, init_mask])
-            self.log_vars.data.copy_(initial_values)
-            self._initialized.fill_(True)
 
     def forward(self, pred_density, mask_logits, gt_density):
         raw_mse = self.mse(pred_density, gt_density) * self.mse_weight
@@ -148,16 +125,16 @@ class MaskMSESSIMLoss(nn.Module):
         max_val = torch.clamp(gt_density.max(), min=1e-5)
         ssim_score = structural_similarity_index_measure(pred_density, gt_density, data_range=max_val) * self.ssim_weight
         raw_ssim = 1.0 - ssim_score
-        gt_mask = (gt_density > self.gt_mask_threshold).float()
-        raw_mask = self.mask_loss_fn(mask_logits, gt_mask) if mask_logits is not None else torch.tensor(0.0, device=pred_density.device)
         
-        if not self._initialized:
-            self._auto_init(raw_mse, raw_ssim, raw_mask)
         # Formula: (Loss / (2 * exp(log_var))) + (log_var / 2)
         # The log_var term penalizes the network for just making the denominator huge
-        loss_mse = (raw_mse * torch.exp(-self.log_vars[0])) + self.log_vars[0]
-        loss_ssim = (raw_ssim * torch.exp(-self.log_vars[1])) + self.log_vars[1]
-        
+        if self.log_vars:
+            loss_mse = (raw_mse * torch.exp(-self.log_vars[0])) + self.log_vars[0]
+            loss_ssim = (raw_ssim * torch.exp(-self.log_vars[1])) + self.log_vars[1]
+        else:
+            loss_mse = raw_mse
+            loss_ssim = raw_ssim
+
         total_loss = loss_mse + loss_ssim
         # Prepare loss dictionary to track individual parts
         loss_dict = {
@@ -165,19 +142,26 @@ class MaskMSESSIMLoss(nn.Module):
             'loss_ssim': loss_ssim,
             'raw_mse': raw_mse,
             'raw_ssim': raw_ssim,
-            'log_var_mse': self.log_vars[0],
-            'log_var_ssim': self.log_vars[1],
         }
+        if self.log_vars:
+            loss_dict['log_var_mse'] = self.log_vars[0]
+            loss_dict['log_var_ssim'] = self.log_vars[1]
         
         if mask_logits is not None:
-            loss_mask = (raw_mask * torch.exp(-self.log_vars[2])) + self.log_vars[2]
+            gt_mask = (gt_density > self.gt_mask_threshold).float()
+            raw_mask = self.mask_loss_fn(mask_logits, gt_mask)
+            if self.log_vars:
+                loss_mask = (raw_mask * torch.exp(-self.log_vars[2])) + self.log_vars[2]
+            else:
+                loss_mask = raw_mask
             total_loss += self.mask_loss_weight * loss_mask
             # print(f"MSE: {raw_mse.item():.4f} | SSIM: {raw_ssim.item():.4f} | Mask: {raw_mask.item():.4f}")
             # print(f"Scaled MSE: {loss_mse.item():.4f} | Scaled SSIM: {loss_ssim.item():.4f} | Scaled Mask: {loss_mask.item():.4f}")
             # print()
             loss_dict['loss_mask'] = loss_mask
             loss_dict['raw_mask'] = raw_mask
-            loss_dict['log_var_mask'] = self.log_vars[2]
+            if self.log_vars:
+                loss_dict['log_var_mask'] = self.log_vars[2]
             
         return total_loss, loss_dict
 

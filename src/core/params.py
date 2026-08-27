@@ -40,6 +40,7 @@ class BaseParams:
     k_threshold: Optional[float] = None
     seg_threshold: Optional[float] = None
     gt_mask_threshold: Optional[float] = None
+    use_uncertainty_weighting: bool = False
     # min_lr_pct: Optional[float] = None
     monitor_metric: str = 'val_nae'
     loss_function: str = 'mse'
