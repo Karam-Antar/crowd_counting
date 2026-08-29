@@ -43,7 +43,7 @@ class BaseParams:
     use_uncertainty_weighting: bool = False
     # min_lr_pct: Optional[float] = None
     monitor_metric: str = 'val_nae'
-    loss_function: str = 'mse'
+    loss_function: str = 'mask_mse_ssim'
     grad_accumulation: int = 1
     grad_clip: Optional[float] = None
     scheduler_kwargs: Dict[str, Any] = field(default_factory=dict)

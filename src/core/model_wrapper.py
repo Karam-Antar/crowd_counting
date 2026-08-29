@@ -56,11 +56,6 @@ class ModelWrapper:
     def __call__(self, x: torch.Tensor):
         return self.model(x)
 
-    import torch
-    from typing import Union, Dict
-    from torch.utils.data import DataLoader
-    import lightning.pytorch as pl
-
 
     @torch.no_grad()
     def evaluate(self, data: Union[DataLoader, "CrowdDataModule"]) -> Dict[str, float]:
