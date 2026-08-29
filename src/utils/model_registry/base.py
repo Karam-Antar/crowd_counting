@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Any
 
 from src import config
-from src.core.exported_model import ExportedModel
+from src.core.model_wrapper import ModelWrapper
 from src.core.params import BaseParams
 from src.models.lit_model import BaseLitModel
 from src.utils.model_registry.utils import ModelPayload

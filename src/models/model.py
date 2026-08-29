@@ -2,7 +2,6 @@ import torch
 from torch import nn
 from src import config
 from src.core.params import BaseParams
-from src.models.hrnet.net import HRNet
 import torch.nn.functional as F
 
 from src.models.encoder_decoder import EncoderDecoder
@@ -13,10 +12,7 @@ class CrowdCounter(torch.nn.Module):
         super().__init__()
         self.params = params
         # 1. Initialize Backbone
-        if params.backbone.startswith('hrnet'):
-            self.net = HRNet(params)
-        else:
-            self.net = EncoderDecoder(params)
+        self.net = EncoderDecoder(params)
         
         if self.params.loss_function == 'mask_mse_ssim':
             # A good rule of thumb is to halve or keep the channel count of the backbone's output

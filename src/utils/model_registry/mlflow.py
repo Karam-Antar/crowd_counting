@@ -5,7 +5,7 @@ import torch
 import mlflow
 from unittest.mock import patch
 from src import config
-from src.core.exported_model import ExportedModel
+from src.core.model_wrapper import ModelWrapper
 from src.core.pyfunc import ProductionPyTorchWrapper
 from src.utils.model_registry.base import BaseRegistry
 from src.utils.model_registry.utils import ModelPayload, add_metadata, get_existing_code_files, get_requirements, is_metric_better_than_history, prepare_temp_dir, zip_code
@@ -28,7 +28,7 @@ class MLFlowRegistry(BaseRegistry):
         
         # 3. Extract the fully initialized PyTorch model and parameters
         # (These were automatically populated by your load_context method)
-        model = ExportedModel(custom_class_instance.model)
+        model = ModelWrapper(custom_class_instance.model)
         params = custom_class_instance.params
         
         return model, params

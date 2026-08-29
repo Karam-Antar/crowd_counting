@@ -15,7 +15,7 @@ from src.models.model import CrowdCounter
 import lightning.pytorch as pl
 from src.models.metrics import MeanBiasError, PositiveOnlyNAE
 
-class ExportedModel:
+class ModelWrapper:
     """
     A production wrapper for torch.ExportedProgram tailored for Crowd Counting.
     Handles high-level evaluation and single-input inference.
