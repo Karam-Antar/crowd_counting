@@ -5,7 +5,14 @@ from torchvision.models.feature_extraction import get_graph_node_names
 
 
 def inspect_model(model_name):
-    """Utility to print out the architecture of a timm model."""
+    """Print the module names for a pretrained timm model architecture.
+
+    Args:
+        model_name (str): Name of the timm model to instantiate.
+
+    Returns:
+        None: Model module names are printed to stdout.
+    """
     model = timm.create_model(model_name, pretrained=True, num_classes=0)
     for name, module in model.named_modules():
         if name: # Avoid printing the root (empty string)
@@ -13,7 +20,15 @@ def inspect_model(model_name):
 
 
 def graph_node_names(model, layer_name=None):
+    """List graph node names for a model, optionally filtered by a layer substring.
 
+    Args:
+        model: PyTorch model instance.
+        layer_name (Optional[str]): Optional substring filter to narrow graph nodes.
+
+    Returns:
+        None: Matching node names are printed to stdout.
+    """
     # Get all available nodes in the model
     train_nodes, eval_nodes = get_graph_node_names(model)
 

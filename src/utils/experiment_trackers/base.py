@@ -5,8 +5,18 @@ from lightning.pytorch.loggers import Logger
 
 
 class BaseTracker(ABC):
-    """Abstract interface for experiment tracking strategies."""
+    """Abstract interface for experiment-tracking strategies used by training runs.
+
+    Concrete implementations provide the logger object and lifecycle methods for
+    creating, updating, and closing the experiment context used by Lightning and MLflow.
+    """
     def __init__(self, experiment: str, run_name: str | list[str] | None = None):
+        """Initialize the tracking strategy with experiment metadata.
+
+        Args:
+            experiment (str): Experiment name used by the tracking backend.
+            run_name (str | list[str] | None): Optional run identifier or nested run names.
+        """
         self.experiment = experiment
         timestamp = lambda: datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.run_name = run_name or f"run_{timestamp()}"
@@ -17,32 +27,35 @@ class BaseTracker(ABC):
     
     @property
     def model_name(self):
+        """Return the model name used in the tracking backend."""
         return 'model'
     
     @property
     def full_experiment_name(self):
+        """Return the fully qualified experiment identifier for metadata."""
         return 'experiment'
     
     @abstractmethod
     def get_logger(self) -> Logger:
-        """Returns the specific PyTorch Lightning Logger instance."""
+        """Return the backend-specific logger used by the Lightning trainer."""
         pass
 
     @abstractmethod
     def start_run(self):
-        """Initializes a run/trial context."""
+        """Initialize the run or trial context for the selected backend."""
         pass
 
     @abstractmethod
     def log_init(self, params: dict):
+        """Log the initial run configuration and experiment metadata."""
         pass
 
     @abstractmethod
     def log_results(self, metrics: dict, params: dict):
-        """Logs the final evaluated metrics and hyperparameters."""
+        """Log the final evaluated metrics and hyperparameters."""
         pass
 
     @abstractmethod
     def end_run(self, status: str = 'success'):
-        """Closes the current run/trial context."""
+        """Close the run or mark it as failed/successful."""
         pass

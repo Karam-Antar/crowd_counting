@@ -12,7 +12,28 @@ from src.data.transform import CustomRandomCrop, FiveCropCollate, PadToMultiple,
 from tqdm import tqdm
 
 class DatasetTransformWrapper(torch.utils.data.Dataset):
+    """Apply a transform to dataset samples while optionally caching transformed items.
+
+    This helper wraps an existing dataset subset and applies a per-sample transform on
+    access, which is useful for validation and training pipelines that need the same
+    image-target preprocessing behavior without changing the base dataset class.
+
+    Attributes:
+        subset: Source dataset or subset to wrap.
+        transform_fn: Callable used to transform ``(image, target)`` pairs.
+        pre_transform (bool): Whether to precompute transformed samples.
+        preloaded_data (list): Cache of transformed items when precomputed.
+    """
     def __init__(self, subset, transform_fn, pre_transform=False, device='cpu'):
+        """Initialize the wrapped dataset.
+
+        Args:
+            subset: A dataset-like object providing ``__getitem__`` and ``__len__``.
+            transform_fn: Function applied to each image-target sample.
+            pre_transform (bool): If ``True``, all transformed samples are cached during
+                construction.
+            device (str): Legacy device hint retained for compatibility.
+        """
         self.subset = subset
         self.transform_fn = transform_fn
         self.pre_transform = pre_transform
@@ -33,6 +54,14 @@ class DatasetTransformWrapper(torch.utils.data.Dataset):
                 self.preloaded_data.append((x, y))
         
     def __getitem__(self, index):
+        """Return a transformed sample by index.
+
+        Args:
+            index (int): Sample index.
+
+        Returns:
+            tuple: The transformed image-target pair.
+        """
         if self.pre_transform:
             # 100% CPU-free and PCIe-free fetch during validation
             return self.preloaded_data[index]
@@ -43,11 +72,37 @@ class DatasetTransformWrapper(torch.utils.data.Dataset):
         return x, y
         
     def __len__(self):
+        """Return the number of wrapped samples.
+
+        Returns:
+            int: Dataset length.
+        """
         return len(self.subset)
 
 
 class CrowdDataModule(pl.LightningDataModule):
+    """Create train, validation, and test dataloaders for crowd-counting experiments.
+
+    The datamodule resolves the configured dataset, builds image-only and image-plus-mask
+    transforms, and wraps the dataset with padding and crop logic necessary for density-map
+    regression training.
+
+    Attributes:
+        data_root (str): Root directory for the dataset.
+        params (BaseParams): Parameter bundle controlling pipeline behavior.
+        train_joint_augs: Shared geometric transforms applied to both image and mask.
+        train_image_augs: Image-only normalization and dtype transforms.
+        test_joint_augs: Test-time joint transforms.
+        test_image_augs: Test-time image normalization pipeline.
+    """
     def __init__(self, data_root=config.DATASET_PATH, params: BaseParams | None = None):
+        """Initialize datamodule configuration for the active experiment.
+
+        Args:
+            data_root (str): Base directory containing the train/valid/test splits.
+            params (BaseParams | None): Experiment parameter object used to resolve model
+                backbone statistics and training configuration.
+        """
         super().__init__()
         self.data_root = data_root
         self.params = params
@@ -92,6 +147,15 @@ class CrowdDataModule(pl.LightningDataModule):
 
     # Custom wrapper methods to correctly route the data
     def apply_train_transforms(self, img, mask):
+        """Apply augmentation and normalization to training samples.
+
+        Args:
+            img: Input RGB image tensor or PIL image.
+            mask: Density-map target tensor aligned with ``img``.
+
+        Returns:
+            tuple: Augmented image and density target pair.
+        """
         # 1. Spatial sync: Crop and Pad both equally
         img, mask = self.train_joint_augs(img, mask)
         
@@ -103,6 +167,15 @@ class CrowdDataModule(pl.LightningDataModule):
         return img, mask
 
     def apply_test_transforms(self, img, mask):
+        """Apply deterministic inference-time transforms to validation/test samples.
+
+        Args:
+            img: Input image tensor.
+            mask: Target density map tensor.
+
+        Returns:
+            tuple: Normalized image and original density target.
+        """
         img, mask = self.test_joint_augs(img, mask)
         img = self.test_image_augs(img)
         # if mask is not None:
@@ -110,6 +183,16 @@ class CrowdDataModule(pl.LightningDataModule):
         return img, mask
 
     def apply_five_crop_transforms(self, img, mask):
+        """Create a five-crop evaluation batch for a sample and keep masks aligned.
+
+        Args:
+            img: Input image tensor.
+            mask: Density-target tensor matching the image.
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor | None]: Stacked crop tensors and aligned
+                mask crops.
+        """
         import torch.nn.functional as F
         
         # 1. Initial base test transforms
@@ -162,6 +245,15 @@ class CrowdDataModule(pl.LightningDataModule):
         return img_crops, mask_crops
 
     def setup(self, stage=None):
+        """Configure the training, validation, and test datasets for the current stage.
+
+        Args:
+            stage (Optional[str]): Lightning stage name. Supported values are ``"fit"``
+                and ``"test"``. If omitted, both are initialized when possible.
+
+        Returns:
+            None: The datamodule populates its dataset attributes in place.
+        """
         train_path = config.TRAIN_PATH
         test_path = config.TEST_PATH
         # print('train_size:', self.params.train_size)
@@ -218,10 +310,20 @@ class CrowdDataModule(pl.LightningDataModule):
             )
 
     def train_dataloader(self):
+        """Create the training DataLoader for the training split.
+
+        Returns:
+            DataLoader: Dataloader that yields batched image-density pairs with random
+                shuffling enabled.
+        """
         return DataLoader(self.train_ds, batch_size=self.params.batch_size, shuffle=True, num_workers=8, pin_memory=True)
     
     def val_dataloader(self):
-        """Cheaper validation during training utilizing FiveCrop."""
+        """Create validation DataLoader using either five-crop or padded batches.
+
+        Returns:
+            DataLoader: Validation loader adapted to the configured evaluation mode.
+        """
         if self.params.five_crops:
             return DataLoader(
                 self.five_crops_val_ds, 
@@ -233,9 +335,18 @@ class CrowdDataModule(pl.LightningDataModule):
         return DataLoader(self.val_ds, batch_size=self.params.val_batch_size or 4, num_workers=12, pin_memory=True, collate_fn=DynamicPadCollate(self.params.padding_multiple))
 
     def test_dataloader(self):
+        """Create the inference-time DataLoader for the test split.
+
+        Returns:
+            DataLoader: Test loader that batches images and density maps with padding.
+        """
         return DataLoader(self.test_ds or self.val_ds, batch_size=self.params.val_batch_size or 4, num_workers=4, pin_memory=True, collate_fn=DynamicPadCollate(self.params.padding_multiple))
     
     def train_eval_dataloader(self):
-        """Used ONLY for evaluating the training set cleanly."""
+        """Create a clean DataLoader for evaluating the training split after fitting.
+
+        Returns:
+            DataLoader: Non-shuffled evaluation loader for training-set metrics.
+        """
         return DataLoader(self.train_eval_ds, batch_size=self.params.val_batch_size or 4, shuffle=False, num_workers=12, collate_fn=DynamicPadCollate(self.params.padding_multiple))
     

@@ -5,7 +5,13 @@ import segmentation_models_pytorch as smp
 from src.core.params import BaseParams
 
 class MSESSIMLoss(nn.Module):
+    """Combine pixel-wise MSE and structural SSIM into a composite density-map loss."""
     def __init__(self, params: BaseParams):
+        """Initialize the MSE+SSIM composite loss.
+
+        Args:
+            params (BaseParams): Parameter bundle containing the SSIM weight.
+        """
         """
         Args:
             ssim_weight (float): Balances pixel intensity (MSE) vs structure (SSIM).
@@ -17,6 +23,15 @@ class MSESSIMLoss(nn.Module):
         self.mse_weight = 1.0 - self.ssim_weight
 
     def forward(self, pred_density, gt_density):
+        """Compute the MSE-SSIM composite loss for a prediction-target density pair.
+
+        Args:
+            pred_density (torch.Tensor): Predicted density map batch.
+            gt_density (torch.Tensor): Ground-truth density map batch.
+
+        Returns:
+            torch.Tensor: Scalar composite loss value.
+        """
         # 1. Calculate MSE (This directly optimizes your PSNR safely)
         loss_mse = self.mse(pred_density, gt_density)
         
@@ -34,7 +49,9 @@ class MSESSIMLoss(nn.Module):
 
 
 class SSIMLoss(nn.Module):
+    """Loss that optimizes density-map structure without an explicit MSE term."""
     def __init__(self):
+        """Initialize the structure-only SSIM loss module."""
         """
         Pure SSIM Loss module for density map structural optimization.
         Optimizes strictly for spatial layout, contrast, and structural patterns.
@@ -42,6 +59,15 @@ class SSIMLoss(nn.Module):
         super().__init__()
 
     def forward(self, pred_density, gt_density):
+        """Compute the complement of SSIM between predicted and ground-truth density maps.
+
+        Args:
+            pred_density (torch.Tensor): Predicted density map batch.
+            gt_density (torch.Tensor): Ground-truth density map batch.
+
+        Returns:
+            torch.Tensor: Scalar loss value where zero indicates a perfect structural match.
+        """
         # 1. Dynamically determine data range based on the ground truth batch max.
         max_val = max(gt_density.max().item(), 1e-5)
         
@@ -58,7 +84,13 @@ class SSIMLoss(nn.Module):
 
 
 class CountPenaltyLoss(nn.Module):
+    """Add a global count regularizer on top of pixel-level density-map losses."""
     def __init__(self, params: BaseParams):
+        """Initialize the count-penalty objective.
+
+        Args:
+            params (BaseParams): Parameter bundle containing the SSIM mix weight.
+        """
         super().__init__()
         self.mse = nn.MSELoss()
         self.l1 = nn.L1Loss()
@@ -71,6 +103,15 @@ class CountPenaltyLoss(nn.Module):
         self.count_weight = 0.08 
 
     def forward(self, pred_density, gt_density):
+        """Compute MSE, SSIM, and count-penalty losses for the current batch.
+
+        Args:
+            pred_density (torch.Tensor): Predicted density-map batch.
+            gt_density (torch.Tensor): Ground-truth density-map batch.
+
+        Returns:
+            torch.Tensor: Scalar combined loss.
+        """
         # 1. Pixel-level Loss (No extra scaling needed since labels are x1000)
         loss_mse = self.mse(pred_density, gt_density)
         
@@ -102,7 +143,14 @@ class CountPenaltyLoss(nn.Module):
 
 
 class MaskMSESSIMLoss(nn.Module):
+    """Combine density regression, SSIM, and foreground-mask supervision in one module."""
     def __init__(self, params: BaseParams):
+        """Initialize the mask-aware composite loss.
+
+        Args:
+            params (BaseParams): Parameter bundle controlling Huber loss, mask focal loss,
+                and uncertainty weighting.
+        """
         super().__init__()
         self.mse = nn.HuberLoss(delta=params.huber_delta)
         self.mask_loss_fn = smp.losses.FocalLoss(
@@ -120,6 +168,16 @@ class MaskMSESSIMLoss(nn.Module):
         self.gt_mask_threshold = params.gt_mask_threshold
 
     def forward(self, pred_density, mask_logits, gt_density):
+        """Compute the full mask-aware composite loss and associated sub-loss breakdown.
+
+        Args:
+            pred_density (torch.Tensor): Predicted density map batch.
+            mask_logits (torch.Tensor): Foreground logit mask before sigmoid activation.
+            gt_density (torch.Tensor): Ground-truth density target batch.
+
+        Returns:
+            tuple[torch.Tensor, dict]: Combined scalar loss and dictionary of component losses.
+        """
         raw_mse = self.mse(pred_density, gt_density) * self.mse_weight
         
         max_val = torch.clamp(gt_density.max(), min=1e-5)
@@ -168,7 +226,13 @@ class MaskMSESSIMLoss(nn.Module):
 
 
 class SpatiallyWeightedLoss(nn.Module):
+    """Use a foreground-aware weighting map to emphasize crowded and sparse regions."""
     def __init__(self, params: BaseParams):
+        """Initialize the spatially weighted loss.
+
+        Args:
+            params (BaseParams): Parameter bundle controlling the SSIM mix weight.
+        """
         super().__init__()
         # reduction='none' allows us to weight pixels individually
         self.mse = nn.MSELoss(reduction='none')
@@ -178,6 +242,15 @@ class SpatiallyWeightedLoss(nn.Module):
         self.gamma = 0.1   # Decay factor for density
 
     def forward(self, pred_density, gt_density):
+        """Compute a density-map loss weighted by the local density distribution.
+
+        Args:
+            pred_density (torch.Tensor): Predicted density map batch.
+            gt_density (torch.Tensor): Ground-truth density map batch.
+
+        Returns:
+            torch.Tensor: Scalar combined spatially weighted loss.
+        """
         # 1. Pixel-wise MSE
         raw_mse = self.mse(pred_density, gt_density)
         

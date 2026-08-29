@@ -15,7 +15,12 @@ from src.utils.model_registry.utils import ModelPayload
 
 
 class BaseExperimentRunner(ABC):
-    """Base PyTorch Lightning engine handling model building and the core training loop."""
+    """Base Lightning runner for crowd-counting model training and evaluation.
+
+    Subclasses define the execution strategy for either single-standard runs or
+    Optuna-driven hyperparameter search, while this base class contains the shared
+    training logic, callbacks, and metric evaluation workflow.
+    """
 
     def __init__(
         self,
@@ -24,6 +29,15 @@ class BaseExperimentRunner(ABC):
         monitor_mode: str = "min",
         lit_model_cls: type[pl.LightningModule] = BaseLitModel,
     ):
+        """Initialize the base training runner.
+
+        Args:
+            model_cls (type[torch.nn.Module]): Concrete model class used to build the
+                underlying architecture.
+            monitor_metric (str): Metric name monitored by early stopping and checkpointing.
+            monitor_mode (str): Optimization direction, typically ``"min"`` or ``"max"``.
+            lit_model_cls (type[pl.LightningModule]): Lightning model wrapper class.
+        """
         self.model_cls = model_cls
         self.lit_model_cls = lit_model_cls
         self.monitor_metric = monitor_metric
@@ -33,9 +47,23 @@ class BaseExperimentRunner(ABC):
         self.registry: Optional[BaseRegistry] = None
 
     def _build_model(self) -> pl.LightningModule:
+        """Construct the Lightning model using the current experiment parameters.
+
+        Returns:
+            pl.LightningModule: Initialized training model instance.
+        """
         return self.lit_model_cls(self.params)
 
     def _evaluate_model(self, trainer: pl.Trainer, model: pl.LightningModule) -> dict:
+        """Evaluate the model on validation and training data and normalize metric keys.
+
+        Args:
+            trainer (pl.Trainer): Lightning trainer instance used for validation.
+            model (pl.LightningModule): Model to evaluate.
+
+        Returns:
+            dict: Dictionary with best-metric keys standardized for tracking.
+        """
         original_loggers = trainer.loggers
         trainer.loggers = []
         val_results = trainer.validate(model, datamodule=self.datamodule, verbose=False)[0]
@@ -53,6 +81,11 @@ class BaseExperimentRunner(ABC):
         return final_metrics
 
     def _get_default_callbacks(self) -> list:
+        """Return the standard early-stopping, checkpointing, and LR-monitor callbacks.
+
+        Returns:
+            list: PyTorch Lightning callback list used by the run.
+        """
         return [
             EarlyStopping(monitor=self.monitor_metric, patience=self.params.stop_patience, mode=self.monitor_mode),
             # ReseedCallback(),
@@ -66,6 +99,12 @@ class BaseExperimentRunner(ABC):
         ]
 
     def _run_training(self):
+        """Execute the common training loop and package final artifacts for logging.
+
+        Returns:
+            ModelPayload: Container returned to the caller with model, tracker, params,
+                and evaluation metrics.
+        """
         self.datamodule = CrowdDataModule(params=self.params)
         self.datamodule.setup('fit')
         lit_model = self._build_model()
@@ -111,4 +150,10 @@ class BaseExperimentRunner(ABC):
 
     @abstractmethod
     def run(self):
+        """Execute the concrete experiment strategy implemented by a subclass.
+
+        Returns:
+            Any: Subclass-specific result payload, typically a study or experiment model
+                bundle.
+        """
         pass

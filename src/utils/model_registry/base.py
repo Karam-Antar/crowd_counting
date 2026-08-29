@@ -9,9 +9,20 @@ from src.utils.model_registry.utils import ModelPayload
 
 
 class BaseRegistry(ABC):
-    """Abstract interface for model registry strategies."""
+    """Abstract interface for registry-backed model artifact storage strategies.
+
+    Implementations define how a trained model payload is uploaded, downloaded, and
+    reloaded from a model registry or artifact store while preserving the experiment
+    metadata and parameter bundle.
+    """
     
     def __init__(self, experiment_name: Optional[str] = None, tracker: Any = None):
+        """Initialize the registry base configuration.
+
+        Args:
+            experiment_name (Optional[str]): Name of the target experiment or model family.
+            tracker: Logger or tracking client used to stamp uploaded artifacts.
+        """
         self.experiment_name = experiment_name
         self.tracker = tracker
 
@@ -19,18 +30,40 @@ class BaseRegistry(ABC):
 
     @abstractmethod
     def upload_model(self, payload: ModelPayload):
-        """Uploads the formatted payload directory to the specific artifact store."""
+        """Upload a trained payload to the concrete artifact backend.
+
+        Args:
+            payload (ModelPayload): Model, tracker, params, and metrics to persist.
+
+        Returns:
+            Any: Backend-specific upload result.
+        """
         pass
 
     @abstractmethod
     def download_model(self, model_name: str, **kwargs) -> tuple[list[str], str]:
-        """Downloads the model directory and returns (list_of_relative_paths, local_download_dir)."""
+        """Download a model artifact and return local path information.
+
+        Args:
+            model_name (str): Registered model name or model URI identifier.
+
+        Returns:
+            tuple[list[str], str]: Relative file paths and the local download directory.
+        """
         pass
 
 
         
     @abstractmethod
     def load_model(self, model_name: str, **kwargs):
+        """Load a stored model from the backend into the runtime environment.
+
+        Args:
+            model_name (str): Model identifier used to resolve the object in storage.
+
+        Returns:
+            Any: The backend-specific loaded model object and associated metadata.
+        """
         pass
         # downloaded_paths, download_dir = self.download_model(model_name, **kwargs)
         # model_relative_path = next((p for p in downloaded_paths if p.casefold().endswith('.pt2')), None)

@@ -55,7 +55,18 @@ LOG_DIR = str(LOG_DIR)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def set_seed():
-    """Set reproducible seed."""
+    """Set deterministic random seeds for NumPy, Python, and PyTorch.
+
+    This keeps experiment runs reproducible across data loading, augmentations,
+    and model initialization when the same code path is executed multiple times.
+
+    Returns:
+        None: The global RNG states are updated in place.
+
+    Raises:
+        None: This helper does not raise exceptions for the standard supported
+            execution environments.
+    """
     random.seed(SEED)
     np.random.seed(SEED)
     torch.manual_seed(SEED)

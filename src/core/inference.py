@@ -6,6 +6,29 @@ from src.data.transform import UnpadToOriginal
 
 @torch.no_grad()
 def predict(model, x: torch.Tensor, device=config.device, h=None, w=None):
+    """Run single or batched crowd-count inference and return counts plus density maps.
+
+    Args:
+        model: A trained PyTorch model that accepts image tensors shaped like
+            ``(B, C, H, W)`` and returns either a density map tensor or a tuple of
+            density map plus auxiliary outputs.
+        x (torch.Tensor): Input image tensor. Batches are accepted as ``(B, C, H, W)``;
+            single images may be passed as ``(C, H, W)`` and are expanded to a batch.
+        device: Target device used for inference, such as ``"cuda"`` or ``"cpu"``.
+        h (Optional[int]): Original image height before padding. Used to crop the
+            model output back to the original spatial size.
+        w (Optional[int]): Original image width before padding. Used with ``h`` to
+            unpad the model output.
+
+    Returns:
+        tuple[torch.Tensor, torch.Tensor]: A tuple ``(total_counts, density_map)`` where
+            ``total_counts`` has shape ``(B,)`` and represents the estimated crowd count
+            for each sample, and ``density_map`` contains the per-pixel density estimate.
+
+    Raises:
+        RuntimeError: If the model cannot process the provided tensor layout or if the
+            device-specific autocast path is unsupported in the current environment.
+    """
     if not isinstance(model, torch.fx.GraphModule):
         model.eval()
     

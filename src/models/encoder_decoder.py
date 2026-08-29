@@ -5,7 +5,25 @@ import segmentation_models_pytorch as smp
 from src.core.params import BaseParams
 
 class EncoderDecoder(nn.Module):
+    """Wrap a segmentation-model encoder-decoder as the feature extractor for density estimation.
+
+    This module instantiates a segmentation model from ``segmentation_models_pytorch``,
+    optionally freezes the encoder backbone, and returns the final decoder feature map
+    used by the crowd-counting head. The expected input is a normalized RGB image batch.
+
+    Attributes:
+        params (BaseParams): Experiment configuration controlling the selected model,
+            encoder, and fine-tuning behavior.
+        en_de: A segmentation-model backbone-decoder instance configured for the current
+            crowd-counting task.
+    """
     def __init__(self, params: BaseParams):
+        """Initialize the encoder-decoder feature extractor.
+
+        Args:
+            params (BaseParams): Parameter bundle containing model class, backbone,
+                pretrained weight source, decoder configuration, and fine-tuning rules.
+        """
         super().__init__()
         self.params = params
         
@@ -34,6 +52,14 @@ class EncoderDecoder(nn.Module):
                     param.requires_grad = True
 
     def forward(self, x):
+        """Run an RGB image batch through the configured encoder-decoder network.
+
+        Args:
+            x (torch.Tensor): Normalized input tensor with shape ``(B, 3, H, W)``.
+
+        Returns:
+            torch.Tensor: Decoder output feature map produced by the segmentation model.
+        """
         # 1. Extract rich semantic features from SMP
         features = self.en_de(x)
         

@@ -14,11 +14,16 @@ from mlflow.types.schema import Schema, TensorSpec
 
 
 class MLFlowRegistry(BaseRegistry):
+    """MLflow-backed registry for uploading and loading crowd-counting model artifacts."""
 
     def load_model(self, model_uri: str, **kwargs):
-        """
-        Loads an MLflow pyfunc model directly via its URI and unwraps it.
-        Example model_uri: "models:/crowd_counting/49" or "models:/crowd_counting/@champion"
+        """Load a registered MLflow pyfunc model from its URI and unwrap the PyTorch backend.
+
+        Args:
+            model_uri (str): MLflow model URI such as ``models:/crowd_counting/49``.
+
+        Returns:
+            tuple[ModelWrapper, BaseParams]: Wrapped PyTorch model and experiment parameters.
         """
         # 1. Download and load the PyFunc wrapper into memory automatically
         pyfunc_wrapper = mlflow.pyfunc.load_model(model_uri)
@@ -35,6 +40,14 @@ class MLFlowRegistry(BaseRegistry):
 
 
     def log_model(self, payload: ModelPayload):
+        """Log the trained model artifact and its input signature to MLflow.
+
+        Args:
+            payload (ModelPayload): Training payload containing the model and parameters.
+
+        Returns:
+            Any: MLflow model info object returned by ``mlflow.pyfunc.log_model``.
+        """
         input_schema = Schema([
             TensorSpec(np.dtype(np.uint8), (-1, -1, -1, 3))
         ])

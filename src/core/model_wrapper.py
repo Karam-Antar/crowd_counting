@@ -16,11 +16,36 @@ import lightning.pytorch as pl
 from src.models.metrics import MeanBiasError, PositiveOnlyNAE
 
 class ModelWrapper:
-    """
-    A production wrapper for torch.ExportedProgram tailored for Crowd Counting.
-    Handles high-level evaluation and single-input inference.
+    """Wrap a compiled or exported crowd-counting model for evaluation and inference.
+
+    The wrapper keeps the device-aware model instance, configures evaluation metrics,
+    and provides a consistent inference interface for both TorchScript/exported models
+    and native PyTorch modules. It is intended for production-style validation and
+    batch metric aggregation for crowd counting tasks.
+
+    Attributes:
+        exported_program (Optional[ExportedProgram]): Original exported model artifact,
+            if the wrapper was initialized from a Torch Export program.
+        device (torch.device): Device used for inference and metric updates.
+        model (CrowdCounter): The concrete model loaded into the selected device.
+        metrics (MetricCollection): Count-based evaluation metrics.
+        mask_metrics (Optional[MetricCollection]): Optional segmentation metrics for
+            foreground mask quality when the model emits a mask head.
     """
     def __init__(self, exported_program: ExportedProgram | GraphModule, device: str = config.device, metrics: Optional[MetricCollection] = None):
+        """Initialize a model wrapper around an exported PyTorch program or module.
+
+        Args:
+            exported_program (ExportedProgram | GraphModule): A compiled model artifact
+                or a graph module instance to wrap for inference and evaluation.
+            device (str): Target device string such as ``"cuda"`` or ``"cpu"``.
+            metrics (Optional[MetricCollection]): Optional metric collection to use
+                instead of the default crowd-counting metrics.
+
+        Raises:
+            TypeError: If the provided model object is neither an exported program nor
+                a valid graph module.
+        """
         self.exported_program = exported_program if isinstance(exported_program, ExportedProgram) else None
         self.device = torch.device(device)
         
@@ -44,21 +69,50 @@ class ModelWrapper:
 
     @torch.no_grad()
     def predict(self, x: torch.Tensor) -> Tuple[float, torch.Tensor]:
-        """
-        Custom inference method for single inputs.
+        """Run inference on a single image and return density count plus map.
+
+        Args:
+            x (torch.Tensor): Input image or batch with shape ``(C, H, W)`` or
+                ``(B, C, H, W)``.
+
         Returns:
-            - total_count (float): The estimated number of people in the image.
-            - density_map (torch.Tensor): The 2D spatial distribution of the crowd.
+            tuple[float, torch.Tensor]: The total count estimate and the corresponding
+            density map tensor.
+
+        Raises:
+            ValueError: If the input tensor cannot be processed by the underlying model.
         """
         return inference.predict(self.model, x)
     
     @torch.no_grad()
     def __call__(self, x: torch.Tensor):
+        """Forward a tensor through the wrapped model without extra wrapper logic.
+
+        Args:
+            x (torch.Tensor): Input batch tensor expected to match the model's
+                training image layout.
+
+        Returns:
+            torch.Tensor: The model's raw output tensor.
+        """
         return self.model(x)
 
 
     @torch.no_grad()
     def evaluate(self, data: Union[DataLoader, "CrowdDataModule"]) -> Dict[str, float]:
+        """Evaluate the model across a dataloader or Lightning datamodule.
+
+        Args:
+            data (Union[DataLoader, CrowdDataModule]): Batched evaluation data. When a
+                LightningDataModule is supplied, it is initialized for the test stage.
+
+        Returns:
+            Dict[str, float]: Aggregated evaluation metrics converted to Python floats.
+
+        Raises:
+            RuntimeError: If the dataloader output does not contain the expected image,
+                target, and original-size tuple structure.
+        """
         if isinstance(data, pl.LightningDataModule):
             data.setup(stage="test")
             loader = data.test_dataloader() or data.final_val_dataloader()

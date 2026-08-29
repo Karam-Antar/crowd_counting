@@ -8,7 +8,26 @@ from src.models.encoder_decoder import EncoderDecoder
 
 
 class CrowdCounter(torch.nn.Module):
+    """Density-estimation network that maps RGB images to crowd density maps.
+
+    The model uses an encoder-decoder backbone for feature extraction, optionally adds a
+    foreground-attention mask head for segmentation-aware training, and returns either a
+    density map or a pair of ``(density_map, mask_logits)`` depending on the selected loss.
+
+    Attributes:
+        params (BaseParams): Config controlling the architecture and scale behavior.
+        net (EncoderDecoder): Feature extraction backbone.
+        density_features: Optional convolutional head producing density features.
+        final_density_conv: Optional final density map projection.
+        attention_head: Optional foreground attention head used for mask-aware losses.
+    """
     def __init__(self, params: BaseParams):
+        """Initialize the crowd counter architecture.
+
+        Args:
+            params (BaseParams): Parameter bundle describing the selected backbone and loss
+                configuration.
+        """
         super().__init__()
         self.params = params
         # 1. Initialize Backbone
@@ -45,6 +64,17 @@ class CrowdCounter(torch.nn.Module):
         
 
     def forward(self, x, return_mask=False):
+        """Run the crowd density model on an input image batch.
+
+        Args:
+            x (torch.Tensor): Batch of normalized RGB images with shape ``(B, 3, H, W)``.
+            return_mask (bool): If ``True``, return the mask logits alongside the density
+                map when the mask-aware loss is active.
+
+        Returns:
+            torch.Tensor | tuple[torch.Tensor, torch.Tensor]: Density map output, and
+                optionally foreground mask logits for the mask-aware loss.
+        """
         features = self.net(x)
         
         if self.params.loss_function != 'mask_mse_ssim':

@@ -16,8 +16,29 @@ from src.models.metrics import MeanBiasError, PositiveOnlyNAE, CombinedMAEMBE
 
 
 class BaseLitModel(pl.LightningModule):
-    """Lightning module that uses composition to wrap a torch Module."""
+    """Lightning wrapper that coordinates model forward passes, loss computation, and metrics.
+
+    This module owns the crowd-counting architecture, selects the configured loss function,
+    tracks training and validation metrics, and exposes inference hooks that integrate with
+    the project's custom density-map pipeline.
+
+    Attributes:
+        params (BaseParams): Runtime configuration for the current training run.
+        model (CrowdCounter): Crowd-counting network instance.
+        criterion: Loss module selected from the configured loss-function enum.
+        train_metrics: Metric collection for training counts.
+        val_metrics: Metric collection for validation counts.
+        train_mask_metrics: Metric collection for training foreground masks.
+        val_mask_metrics: Metric collection for validation foreground masks.
+    """
     def __init__(self, params: BaseParams, model: Optional[torch.nn.Module] = None):
+        """Initialize the Lightning module and attach its training loss and metrics.
+
+        Args:
+            params (BaseParams): Parameter object containing the selected architecture and
+                training configuration.
+            model (Optional[torch.nn.Module]): Optional pre-instantiated model override.
+        """
         super().__init__()
         self.save_hyperparameters(ignore=['model'])
         self.params = params
@@ -57,11 +78,29 @@ class BaseLitModel(pl.LightningModule):
                 self.criterion = torch.nn.MSELoss()
     
     def forward(self, x):
+        """Execute a forward pass through the underlying crowd-counting model.
+
+        Args:
+            x (torch.Tensor): Input batch tensor shaped ``(B, C, H, W)``.
+
+        Returns:
+            torch.Tensor: Output density map or model-predicted value.
+        """
         # x = self.transform(x)
         return self.model(x)
     
     def _shared_step(self, x, y):
-        """Handles the forward pass, loss computation, and mask preparation for both train and val."""
+        """Compute the model output, loss, and auxiliary mask tensors for train/validation.
+
+        Args:
+            x (torch.Tensor): Input image batch.
+            y (torch.Tensor): Ground-truth density map batch.
+
+        Returns:
+            tuple: ``(loss, pred_density, mask_probs, gt_mask, loss_dict)`` where the mask
+                tensors are optional and may be ``None`` when the chosen loss does not use
+                a foreground mask.
+        """
         mask_probs = None
         gt_mask = None
         
@@ -79,6 +118,16 @@ class BaseLitModel(pl.LightningModule):
         return loss, pred_density, mask_probs, gt_mask, loss_dict
 
     def training_step(self, batch, batch_idx):
+        """Execute one training step and log count and mask metrics.
+
+        Args:
+            batch: A tuple of ``(x, y)`` where ``x`` is the input image batch and ``y``
+                is the ground-truth density map batch.
+            batch_idx (int): Index of the current minibatch.
+
+        Returns:
+            torch.Tensor: Scalar training loss used by Lightning.
+        """
         # 1. Unpack standard training batch (Cropped uniformly, no sizes passed)
         x, y = batch 
         
@@ -103,6 +152,16 @@ class BaseLitModel(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
+        """Execute one validation step and compute metrics on the original image scale.
+
+        Args:
+            batch: A tuple of ``(x, y, orig_sizes)`` containing padded image batches,
+                targets, and the original spatial sizes for each item.
+            batch_idx (int): Index of the current validation minibatch.
+
+        Returns:
+            None: Validation metrics are logged to the trainer via ``self.log``.
+        """
         # 1. Unpack dynamic batch including original sizes from collate_fn
         x, y, orig_sizes = batch
         
@@ -154,6 +213,12 @@ class BaseLitModel(pl.LightningModule):
                 self.log_dict(val_loss_logs, on_step=False, on_epoch=True, prog_bar=False)
 
     def configure_optimizers(self):
+        """Create the optimizer and optional scheduler for the current training run.
+
+        Returns:
+            torch.optim.Optimizer | dict: Optimizer instance or PyTorch Lightning
+                scheduler dictionary.
+        """
         # 1. Group parameters
         param_groups = self._get_param_groups()
         
@@ -178,8 +243,14 @@ class BaseLitModel(pl.LightningModule):
     
     
     def predict(self, x):
-        """
-        Custom inference method for single inputs.
+        """Run inference for a single image or batch using the wrapped crowd-counter.
+
+        Args:
+            x (torch.Tensor): Input images expected to match the model's normalized
+                ``(B, C, H, W)`` format.
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor]: Total count estimates and density maps.
         """
         import src.core.inference as inference
         return inference.predict(self.model, x, self.device)
@@ -187,7 +258,12 @@ class BaseLitModel(pl.LightningModule):
 
     
     def _get_param_groups(self):
-        """Splits model parameters into backbone, head, and loss groups."""
+        """Partition trainable parameters into backbone, head, and auxiliary loss groups.
+
+        Returns:
+            list[dict]: A list of optimizer parameter groups with individually tuned
+                learning rates.
+        """
         backbone_params = []
         head_params = []
         loss_params = []
@@ -221,7 +297,15 @@ class BaseLitModel(pl.LightningModule):
         return param_groups
     
     def _get_scheduler_config(self, optimizer):
-        """Returns the Lightning scheduler dictionary based on config, or None."""
+        """Build the scheduler configuration based on the selected learning-rate strategy.
+
+        Args:
+            optimizer: PyTorch optimizer instance.
+
+        Returns:
+            Optional[dict]: Scheduler configuration compatible with Lightning, or ``None``
+                when no scheduler is selected.
+        """
         match self.params.lr_schedule:
             case 'plateau':
                 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(

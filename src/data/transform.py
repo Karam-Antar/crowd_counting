@@ -4,12 +4,34 @@ from torchvision.transforms.v2 import functional as F
 import random
 
 class PadToMultiple(torch.nn.Module):
-    """Pads image and mask to the nearest multiple of 'multiple'."""
+    """Pad image and target tensors to the nearest multiple of a base stride.
+
+    This is primarily used to align spatial dimensions with model downsampling
+    requirements, especially encoder-decoder backbones that rely on divisibility by
+    powers of two.
+
+    Attributes:
+        multiple (int): Padding base; output height and width are rounded upward to a
+            multiple of this value.
+    """
     def __init__(self, multiple=32):
+        """Initialize the padding module.
+
+        Args:
+            multiple (int): Alignment factor used to compute padded dimensions.
+        """
         super().__init__()
         self.multiple = multiple
 
     def forward(self, *inputs):
+        """Pad each tensor on the right and bottom to match the target size.
+
+        Args:
+            *inputs: One or more tensors, typically an image tensor and a density map.
+
+        Returns:
+            list[torch.Tensor]: A list containing each input padded to the computed size.
+        """
         # We assume the first input is the image/tensor to get dimensions from
         h, w = inputs[0].shape[-2:]
         
@@ -24,15 +46,26 @@ class PadToMultiple(torch.nn.Module):
         return [F.pad(item, padding, fill=0) for item in inputs]
     
 class UnpadToOriginal(torch.nn.Module):
-    """Removes the right and bottom padding to restore the tensor to its original dimensions."""
+    """Remove right/bottom padding from a tensor to recover the original spatial size.
+
+    This is used after model inference to crop density maps and masks back to the
+    original image dimensions before computing counts and segmentation metrics.
+    """
     def __init__(self):
+        """Initialize the unpadding module."""
         super().__init__()
 
     def forward(self, padded_tensor, original_shape):
-        """
+        """Crop a padded tensor back to the original height and width.
+
         Args:
-            padded_tensor (Tensor): The model's output tensor (e.g., shape [B, C, H_padded, W_padded])
-            original_shape (tuple or torch.Size): The (height, width) of the image before padding
+            padded_tensor (torch.Tensor): A model output or feature map with padded
+                spatial dimensions.
+            original_shape (tuple | torch.Size): Pair describing the original image shape
+                as ``(height, width)``.
+
+        Returns:
+            torch.Tensor: Tensor cropped to ``[..., original_h, original_w]``.
         """
         # Extract the original height and width
         org_h, org_w = original_shape[-2:]
@@ -42,14 +75,30 @@ class UnpadToOriginal(torch.nn.Module):
 
 
 class CustomRandomCrop:
-    """
-    Handles padding if the image is smaller than patch_size, 
-    then applies an identical random crop to both image and mask.
+    """Pad and randomly crop image-target pairs while maintaining spatial alignment.
+
+    This transform ensures that smaller images are padded to a minimum patch size before
+    a random crop is applied to both the RGB image and the density target, preserving
+    alignment between the two tensors.
     """
     def __init__(self, patch_size=256):
+        """Initialize the crop transform.
+
+        Args:
+            patch_size (int): Minimum size used when choosing the random crop window.
+        """
         self.patch_size = patch_size
 
     def __call__(self, img, mask):
+        """Pad a sample if needed and return a spatially aligned random crop.
+
+        Args:
+            img: Input image tensor or PIL image.
+            mask: Corresponding density map or mask tensor.
+
+        Returns:
+            tuple: ``(cropped_image, cropped_mask)`` with matching spatial dimensions.
+        """
         # img and mask are expected to be PIL Images or Tensors
         h, w = F.get_size(img)
         
@@ -77,11 +126,24 @@ class CustomRandomCrop:
 
 
 class SafePhotometricRandAugment(torch.nn.Module):
-    """
-    Mimics v2.RandAugment but restricts operations strictly to pixel-level (color/lighting) 
-    transforms. This prevents geometric operations from misaligning the image and density map.
+    """Apply a constrained set of photometric augmentations without geometric distortion.
+
+    The augmentation pool is restricted to color-space and lighting transforms, which is
+    important for density estimation because geometric changes can misalign image and
+    target maps.
+
+    Attributes:
+        num_ops (int): Number of augmentation operations sampled per call.
+        op_pool (torch.nn.ModuleList): Non-geometric transform operations used for
+            augmentation.
     """
     def __init__(self, num_ops: int = 2, magnitude: int = 0.3):
+        """Initialize the photometric augmentation pool.
+
+        Args:
+            num_ops (int): Number of random operations to sample each forward pass.
+            magnitude (int): Scale factor controlling augmentation strength.
+        """
         super().__init__()
         self.num_ops = num_ops
         
@@ -105,6 +167,14 @@ class SafePhotometricRandAugment(torch.nn.Module):
         ])
 
     def forward(self, img: torch.Tensor) -> torch.Tensor:
+        """Apply a random subset of photometric transforms to an image tensor.
+
+        Args:
+            img (torch.Tensor): Input image tensor in normalized ``[0, 1]`` range.
+
+        Returns:
+            torch.Tensor: Augmented image tensor with the same spatial shape.
+        """
         # 1. Pre-clamp guard: Ensure input is clean [0, 1] float data
         img = torch.clamp(img, 0.0, 1.0)
         
@@ -121,18 +191,44 @@ class SafePhotometricRandAugment(torch.nn.Module):
 
 
 class BasePadCollate:
-    """Base class to share mathematical padding logic across collate functions."""
+    """Provide shared padding helpers for batched evaluation and crop collates.
+
+    The collate functions rely on a common strategy of padding tensors to the next
+    multiple of a configured stride so that model outputs remain spatially aligned.
+    """
     def __init__(self, multiple):
+        """Initialize the collate padding base.
+
+        Args:
+            multiple (int): Base multiple used when calculating padded dimensions.
+        """
         self.multiple = multiple
         
     def get_padded_dims(self, h, w):
-        """Calculates the nearest multiple of stride for height and width."""
+        """Compute padded height and width values rounded up to the next multiple.
+
+        Args:
+            h (int): Current height in pixels.
+            w (int): Current width in pixels.
+
+        Returns:
+            tuple[int, int]: Padded height and width values.
+        """
         pad_h = ((h + self.multiple - 1) // self.multiple) * self.multiple
         pad_w = ((w + self.multiple - 1) // self.multiple) * self.multiple
         return pad_h, pad_w
         
     def pad_tensor(self, tensor, target_h, target_w):
-        """Pads a tensor on the bottom and right edges using PyTorch's native F.pad."""
+        """Pad a tensor on the bottom and right edges to the target shape.
+
+        Args:
+            tensor (torch.Tensor): Tensor to pad.
+            target_h (int): Desired padded height.
+            target_w (int): Desired padded width.
+
+        Returns:
+            torch.Tensor: Tensor after right/bottom padding.
+        """
         h, w = tensor.shape[-2], tensor.shape[-1]
         pad_bottom = target_h - h
         pad_right = target_w - w
@@ -147,7 +243,17 @@ class BasePadCollate:
 
 
 class DynamicPadCollate(BasePadCollate):
+    """Pad each batch item to the maximum spatial extent in the batch."""
     def __call__(self, batch):
+        """Collate a batch while padding images and masks to a common size.
+
+        Args:
+            batch: Sequence of ``(image, mask)`` pairs.
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor, list[list[int]]]: Padded images, padded
+                masks, and the original spatial sizes for each sample.
+        """
         # 1. Get original sizes (H, W are always the last two dimensions)
         original_sizes = [[item[0].shape[-2], item[0].shape[-1]] for item in batch]
         
@@ -166,7 +272,17 @@ class DynamicPadCollate(BasePadCollate):
 
 
 class FiveCropCollate(BasePadCollate):
+    """Collate a batch generated from a five-crop evaluation strategy."""
     def __call__(self, batch):
+        """Flatten and pad five-crop results into a single collated tensor batch.
+
+        Args:
+            batch: Sequence of items where each item contains a tensor stack of five crops.
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor, list[list[int]]]: Flattened and padded crop
+                batch plus original crop sizes.
+        """
         # 1. Stack and flatten the batch of crops
         imgs = torch.stack([item[0] for item in batch]).flatten(0, 1)
         masks = torch.stack([item[1] for item in batch]).flatten(0, 1)

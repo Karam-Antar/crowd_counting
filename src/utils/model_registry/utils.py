@@ -24,7 +24,22 @@ from src.utils.experiment_trackers import BaseTracker
 
 @dataclass
 class ModelPayload:
-    """Encapsulates all artifacts and metadata produced by a training run."""
+    """Bundle the model, parameters, tracker context, and metrics for a training run.
+
+    This object is used by registry upload logic to persist the best checkpoint,
+    experiment metadata, and code artifacts for a given crowd-counting model.
+
+    Attributes:
+        model (torch.nn.Module): Trained model instance.
+        tracker (BaseTracker): Active experiment-tracking backend.
+        params (BaseParams): Configuration snapshot used for the run.
+        metrics (dict): Final evaluation metrics associated with the run.
+        monitor_metric (str): Metric used for checkpoint selection and comparison.
+        monitor_mode (str): Optimization direction for the monitor metric.
+        ckpt_path (Optional[str]): Optional checkpoint file path.
+        code_artifacts (Optional[dict]): Additional local code artifacts to log.
+        force_upload (bool): Whether to bypass historical best-check comparison.
+    """
     model: torch.nn.Module
     tracker: BaseTracker
     params: BaseParams
@@ -39,11 +54,21 @@ class ModelPayload:
 # --- Shared Preparation Logic (Backend Agnostic) ---
 
 def get_requirements():
+    """Read the serving requirements file used by MLflow deployment artifacts.
+
+    Returns:
+        list[str]: Requirement entries read from ``requirements-serve.txt``.
+    """
     with open(config.SERVE_REQUIREMENTS_PATH, "r") as f:
         serve_reqs = f.read().splitlines()
         return serve_reqs
 
 def get_existing_code_files():
+    """Collect tracked repository files suitable for packaging with model artifacts.
+
+    Returns:
+        tuple[list[Path], Path]: List of relevant file paths and the repository root.
+    """
     try:
         git_root = subprocess.check_output(
             "git rev-parse --show-toplevel", 
@@ -75,6 +100,14 @@ def get_existing_code_files():
     return absolute_files, git_root_path
 
 def zip_code(artifacts_path: Path):
+    """Create a zipped snapshot of the repository code for artifact traceability.
+
+    Args:
+        artifacts_path (Path): Directory where the ``code.zip`` archive should be created.
+
+    Returns:
+        None: Zip archive is written to disk.
+    """
     # Change the extension to .zip
     code_path = artifacts_path / "code.zip"
     code_path.parent.mkdir(parents=True, exist_ok=True)
@@ -100,6 +133,18 @@ def zip_code(artifacts_path: Path):
 
 
 def add_metadata(artifacts_path: Path, params: BaseParams, experiment_name: str, metrics: dict, empty_files=False):
+    """Write experiment metadata and model config alongside the model artifact bundle.
+
+    Args:
+        artifacts_path (Path): Directory or file path where metadata should be written.
+        params (BaseParams): Parameter bundle for the current experiment.
+        experiment_name (str): Name of the experiment or run used for tracking.
+        metrics (dict): Aggregated evaluation metrics for the current run.
+        empty_files (bool): Whether to generate placeholder metadata files.
+
+    Returns:
+        None: Metadata is written to disk.
+    """
     config_file_path = artifacts_path
     best_metrics = {k: v for k, v in metrics.items() if str(k).casefold().startswith('best')}
     params.to_json(config_file_path, meta={'experiment': experiment_name, 'metrics': best_metrics})
@@ -110,7 +155,16 @@ def add_metadata(artifacts_path: Path, params: BaseParams, experiment_name: str,
         )
 
 def prepare_temp_dir(artifacts_path: Path, payload: ModelPayload, experiment_name: str):
-    """Prepares a temporary directory with the model, checkpoints, and metadata."""
+    """Prepare a temp directory with the checkpoint, metadata, and code bundle.
+
+    Args:
+        artifacts_path (Path): Directory used to stage the model artifacts.
+        payload (ModelPayload): Model registration payload.
+        experiment_name (str): Name of the experiment used in metadata.
+
+    Returns:
+        None: Artifact directory is populated in place.
+    """
     os.makedirs(artifacts_path, exist_ok=True)
     
     # 1. Add Config and Metadata
@@ -141,39 +195,48 @@ def prepare_temp_dir(artifacts_path: Path, payload: ModelPayload, experiment_nam
 
 
 def is_metric_better_than_history(payload: ModelPayload) -> bool:
-        from mlflow.tracking import MlflowClient
-        from mlflow.exceptions import MlflowException
+    """Compare the current metric against the best historical result in MLflow.
+
+    Args:
+        payload (ModelPayload): Current model payload with the tracked metric value.
+
+    Returns:
+        bool: ``True`` if the current model is better than the historical best, else
+            ``False``.
+    """
+    from mlflow.tracking import MlflowClient
+    from mlflow.exceptions import MlflowException
+    
+    client = MlflowClient()
+    experiment = client.get_experiment_by_name(payload.tracker.experiment)
+    
+    if not experiment:
+        return True
         
-        client = MlflowClient()
-        experiment = client.get_experiment_by_name(payload.tracker.experiment)
+    metric_name = f"best_{payload.monitor_metric}"
+    mode = payload.monitor_mode
+    filter_query = f"metrics.{metric_name} >= 0 AND attributes.run_id != '{payload.tracker.logger.run_id}'"
+    order_direction = "ASC" if mode == "min" else "DESC"
+    
+    try:
+        best_runs = client.search_runs(
+            experiment_ids=[experiment.experiment_id],
+            filter_string=filter_query,
+            order_by=[f"metrics.{metric_name} {order_direction}"],
+            max_results=1
+        )
+    except MlflowException:
+        # Fails safely if the metric key doesn't exist in MLflow yet
+        return True
         
-        if not experiment:
-            return True
-            
-        metric_name = f"best_{payload.monitor_metric}"
-        mode = payload.monitor_mode
-        filter_query = f"metrics.{metric_name} >= 0 AND attributes.run_id != '{payload.tracker.logger.run_id}'"
-        order_direction = "ASC" if mode == "min" else "DESC"
+    if not best_runs or metric_name not in best_runs[0].data.metrics:
+        return True
         
-        try:
-            best_runs = client.search_runs(
-                experiment_ids=[experiment.experiment_id],
-                filter_string=filter_query,
-                order_by=[f"metrics.{metric_name} {order_direction}"],
-                max_results=1
-            )
-        except MlflowException:
-            # Fails safely if the metric key doesn't exist in MLflow yet
-            return True
-            
-        if not best_runs or metric_name not in best_runs[0].data.metrics:
-            return True
-            
-        best_historical_value = best_runs[0].data.metrics[metric_name]
-        current_value: float = payload.metrics.get(metric_name, 1)
-        print(f"Comparing Current: {current_value:.4f} vs Historical Best: {best_historical_value:.4f}")
-        
-        if mode == "min":
-            return current_value < best_historical_value
-        else:
-            return current_value > best_historical_value
+    best_historical_value = best_runs[0].data.metrics[metric_name]
+    current_value: float = payload.metrics.get(metric_name, 1)
+    print(f"Comparing Current: {current_value:.4f} vs Historical Best: {best_historical_value:.4f}")
+    
+    if mode == "min":
+        return current_value < best_historical_value
+    else:
+        return current_value > best_historical_value

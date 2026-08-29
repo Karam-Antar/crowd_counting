@@ -9,7 +9,32 @@ from tqdm import tqdm
 # REMOVED: import h5py
 
 class CustomDataset(Dataset):
+    """Dataset for loading image-density pairs from disk.
+
+    The dataset expects a folder of RGB images and a parallel folder of NumPy density
+    maps with matching basenames. It is used for crowd-counting training and validation
+    data ingestion and optionally supports loading a subset into memory.
+
+    Attributes:
+        img_paths (list[str]): Sorted paths to image files.
+        gt_paths (list[str]): Sorted paths to NumPy ground-truth density maps.
+        transform: Optional callable used to transform image-target pairs after loading.
+        preload_to_ram (bool): Whether to cache samples in memory during initialization.
+        data (list[tuple]): Optional in-memory cache of preloaded samples.
+    """
     def __init__(self, img_dir, gt_dir, transform=None, preload_to_ram=False):
+        """Initialize the dataset by scanning paired image and target directories.
+
+        Args:
+            img_dir (str): Directory containing RGB input images.
+            gt_dir (str): Directory containing NumPy ground-truth density maps.
+            transform: Optional transform applied to each image-target pair.
+            preload_to_ram (bool): If ``True``, load all samples into memory during
+                initialization instead of reading from disk per item.
+
+        Raises:
+            AssertionError: If the image and target counts do not match exactly.
+        """
         self.img_paths = sorted(glob.glob(os.path.join(img_dir, "*.jpg")))
         self.gt_paths = sorted(glob.glob(os.path.join(gt_dir, "*.npy")))
         print(len(self.img_paths), "images found in", img_dir)
@@ -34,9 +59,26 @@ class CustomDataset(Dataset):
                 self.data.append((img_tensor, target_tensor))
 
     def __len__(self):
+        """Return the number of samples in the dataset.
+
+        Returns:
+            int: Length of the dataset.
+        """
         return len(self.img_paths)
 
     def __getitem__(self, idx):
+        """Load and optionally transform a single image-ground-truth pair.
+
+        Args:
+            idx (int): Sample index.
+
+        Returns:
+            tuple: A pair of ``(image, target)`` tensors, where the target is the
+                density map mask for crowd counting.
+
+        Raises:
+            IndexError: If the index is outside the dataset range.
+        """
         if self.preload_to_ram:
             # Retrieve directly from memory
             img, target = self.data[idx]

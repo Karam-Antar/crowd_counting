@@ -6,11 +6,25 @@ import numpy as np
 from src.core import inference
 
 class ProductionPyTorchWrapper(mlflow.pyfunc.PythonModel):
+    """MLflow pyfunc wrapper for loading and serving a crowd-counting model.
+
+    The wrapper resolves model artifacts at runtime, restores the trained state
+    dictionary, and exposes a predict method that consumes raw NumPy image arrays and
+    returns crowd counts plus decoded density maps.
+    """
     
     def load_context(self, context):
-        """
-        Executed exactly once when the container boots up.
-        Handles loading code, parameters, and weights safely.
+        """Load model configuration, weights, and preprocessing metadata from MLflow.
+
+        Args:
+            context: MLflow model context containing the artifact directory and metadata.
+
+        Returns:
+            None: The model and its parameters are loaded onto the instance in place.
+
+        Raises:
+            KeyError: If the expected ``weights`` or ``params`` artifacts are missing.
+            RuntimeError: If the checkpoint cannot be mapped to the detected device.
         """
         # 1. Determine hardware environment safely
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -33,9 +47,20 @@ class ProductionPyTorchWrapper(mlflow.pyfunc.PythonModel):
         self.model.to(self.device)
 
     def predict(self, context, model_input) -> list[dict[str, np.ndarray]]:
-        """
-        Executed for every REST API request.
-        Handles I/O translation and preprocessing.
+        """Serve a batch of raw images through the loaded crowd-counting model.
+
+        Args:
+            context: MLflow model context, used for runtime access to the loaded model.
+            model_input: A NumPy array representing one or more RGB images, typically with
+                shape ``(H, W, C)`` or ``(B, H, W, C)`` and uint8 values.
+
+        Returns:
+            list[dict[str, np.ndarray]]: A list of result dictionaries, each containing a
+            floating-point crowd count and a density map array for one image.
+
+        Raises:
+            ValueError: If the supplied model input cannot be converted to a valid image
+                tensor layout.
         """
         # 1. Delayed import for preprocessing logic
         from src.data.transform_sample import preprocess
