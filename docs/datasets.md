@@ -79,43 +79,14 @@ $$C = \sum_{x,y} D(x,y)$$
 
 ## 5. Data Pipeline & Augmentation Strategy
 
-The `CrowdDataModule` splits processing into joint spatial transformations and image-only photometric operations to preserve spatial alignment between RGB images and their corresponding density maps.
+The detailed preprocessing pipeline and flow charts were moved to [data_pipeline.md](data_pipeline.md).
 
-### Spatial Transformations (Jointly Applied)
+This section is intentionally kept short to summarize the overall data-processing contract:
 
-* **Random Cropping:** During training, fixed-size spatial patches ($256 \times 256$) are randomly cropped simultaneously from both the RGB image and the density map. This mitigates GPU VRAM limitations and acts as a robust data augmentation technique.
+- training samples are processed with joint spatial transforms and image-only normalization,
+- validation and test samples use deterministic preprocessing unless the `five_crops` evaluation mode is enabled,
+- the dataset relies on aligned image-target ordering across `images` and `ground-truth-npy` folders,
+- padding is applied to satisfy backbone stride constraints and maintain alignment,
+- batch-level padding and five-crop batching are handled by custom collate functions.
 
-
-* **Padding to Divisibility (`PadToMultiple(32)`):** Ensures spatial dimensions (Height and Width) are exact multiples of 32. This prevents shape mismatch errors during downsampling and skip-connection concatenations in backbones like decoders like U-Net and MAnet.
-
-
-* **Random Horizontal Flipping ($p=0.5$):** Horizontally mirrors both the image and density map simultaneously, preserving coordinate synchronization and total count.
-
-
-
-### Photometric Transformations (Image-Only)
-
-* **Safe Photometric RandAugment:** Applies color jitter, solarization, and blurring strictly to the RGB image tensor. This injects severe training variance without mutating spatial coordinates or altering the density map's integral sum.
-
-
-* **ImageNet Normalization:** Normalizes RGB pixel values using standard ImageNet distribution statistics (`mean=[0.485, 0.456, 0.406]`, `std=[0.229, 0.224, 0.225]`), while explicitly bypassing normalization masks on the density target.
-
-
-
----
-
-<!-- ## 5. Dataset Acquisition & Conversion Workflow
-
-Official crowd counting releases typically provide raw point annotations (`.mat` or JSON point coordinates) rather than pre-generated density maps, as optimal kernel sizing depends on network architecture.
-
-1. Download raw point annotations from official repositories (e.g., ShanghaiTech or JHU-CROWD++ portals).
-
-
-2. Execute conversion scripts utilizing geometry-adaptive Gaussian filters based on k-nearest neighbor ($k$-NN) average distances to generate smooth spatial distributions:
-
-
-
-$$D(x) = \sum_{i=1}^{N} \delta(x - x_i) * G_{\sigma}(x)$$
-
-
-3. Package and store the resulting arrays into standardized `.h5` files with naming conventions matching their corresponding source images. -->
+For the full step-by-step pipeline, conditions, and Mermaid diagrams, see [data_pipeline.md](data_pipeline.md).
