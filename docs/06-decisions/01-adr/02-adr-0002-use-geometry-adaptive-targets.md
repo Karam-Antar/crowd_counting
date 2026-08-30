@@ -8,6 +8,8 @@ Accepted
 
 Different parts of the same image may contain people at very different scales because of perspective and camera distance.
 
+People are highly overlapping because of high density.
+
 ## Decision
 
 Use geometry-aware density targets that better reflect the varying crowd scale across the image.
