@@ -1,0 +1,6 @@
+flowchart LR
+    A[Load data] --> B[Apply transforms]
+    B --> C[Train density model]
+    C --> D[Predict density map]
+    D --> E[Evaluate]
+    E --> F[Log run]
