@@ -125,21 +125,21 @@ nest-asyncio==1.6.0
 networkx==3.6.1
 notebook_shim==0.2.4
 numpy==2.4.6
-nvidia-cublas==13.1.0.3
-nvidia-cuda-cupti==13.0.85
-nvidia-cuda-nvrtc==13.0.88
-nvidia-cuda-runtime==13.0.96
-nvidia-cudnn-cu13==9.19.0.56
-nvidia-cufft==12.0.0.61
-nvidia-cufile==1.15.1.6
-nvidia-curand==10.4.0.35
-nvidia-cusolver==12.0.4.66
-nvidia-cusparse==12.6.3.3
-nvidia-cusparselt-cu13==0.8.0
-nvidia-nccl-cu13==2.28.9
-nvidia-nvjitlink==13.0.88
-nvidia-nvshmem-cu13==3.4.5
-nvidia-nvtx==13.0.85
+# nvidia-cublas==13.1.0.3
+# nvidia-cuda-cupti==13.0.85
+# nvidia-cuda-nvrtc==13.0.88
+# nvidia-cuda-runtime==13.0.96
+# nvidia-cudnn-cu13==9.19.0.56
+# nvidia-cufft==12.0.0.61
+# nvidia-cufile==1.15.1.6
+# nvidia-curand==10.4.0.35
+# nvidia-cusolver==12.0.4.66
+# nvidia-cusparse==12.6.3.3
+# nvidia-cusparselt-cu13==0.8.0
+# nvidia-nccl-cu13==2.28.9
+# nvidia-nvjitlink==13.0.88
+# nvidia-nvshmem-cu13==3.4.5
+# nvidia-nvtx==13.0.85
 opentelemetry-api==1.41.1
 opentelemetry-proto==1.41.1
 opentelemetry-sdk==1.41.1
@@ -220,7 +220,7 @@ torchvision==0.26.0
 tornado==6.5.5
 tqdm==4.67.3
 traitlets==5.14.3
-triton==3.6.0
+# triton==3.6.0
 typer==0.25.1
 typing-inspection==0.4.2
 typing_extensions==4.15.0
@@ -239,4 +239,4 @@ WTForms==3.2.2
 yarg==0.1.10
 yarl==1.23.0
 zipp==3.23.1
---extra-index-url https://download.pytorch.org/whl/cu130
+# --extra-index-url https://download.pytorch.org/whl/cu130

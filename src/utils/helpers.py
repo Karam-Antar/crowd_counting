@@ -4,7 +4,6 @@ import datetime
 import multiprocessing
 from pathlib import Path
 import re
-import litlogger
 import torch
 from src import config
 from src.data.transform import PadToMultiple
@@ -153,30 +152,30 @@ def to_snake_case(name: str) -> str:
     return s2.lower()
 
 
-def check_experiment_existence(name: str, queue: multiprocessing.Queue):
-    """Check whether an experiment name already exists in the tracking backend.
+# def check_experiment_existence(name: str, queue: multiprocessing.Queue):
+#     """Check whether an experiment name already exists in the tracking backend.
 
-    Args:
-        name (str): Experiment name to probe.
-        queue (multiprocessing.Queue): Queue used to return the boolean result.
+#     Args:
+#         name (str): Experiment name to probe.
+#         queue (multiprocessing.Queue): Queue used to return the boolean result.
 
-    Returns:
-        None: The boolean status is emitted to the provided queue.
-    """
-    try:
-        # Ping the cloud API safely inside the sandbox
-        exp = litlogger.init(name=name)
-        has_data = len(exp.metadata) > 0
+#     Returns:
+#         None: The boolean status is emitted to the provided queue.
+#     """
+#     try:
+#         # Ping the cloud API safely inside the sandbox
+#         exp = litlogger.init(name=name)
+#         has_data = len(exp.metadata) > 0
         
-        # If it's taken, cleanly close the scout connection
-        # if has_data:
-        exp.finalize('aborted')
+#         # If it's taken, cleanly close the scout connection
+#         # if has_data:
+#         exp.finalize('aborted')
             
-        # Send the boolean answer back to the main process
-        queue.put(has_data)
-    except Exception as e:
-        print(f"Cloud scout warning: {e}")
-        queue.put(False) # Safe fallback if API errors out
+#         # Send the boolean answer back to the main process
+#         queue.put(has_data)
+#     except Exception as e:
+#         print(f"Cloud scout warning: {e}")
+#         queue.put(False) # Safe fallback if API errors out
 
 
 def get_sample_from_dm(datamodule, index=0):
