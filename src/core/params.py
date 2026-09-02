@@ -33,7 +33,8 @@ class BaseParams:
         l2_reg (Optional[float]): Weight decay factor for optimizer regularization.
         lr_schedule (Optional[str]): Learning-rate schedule strategy name.
         ssim_weight (Optional[float]): Weight assigned to the SSIM term in composite losses.
-        use_count_loss (Optional[bool]): Whether to apply the mse/huber on each pixel or on the overall count
+        mse_weight (Optional[float]): Weight assigned to the MSE/Huber term in composite losses.
+        use_count_loss (Optional[bool]): Whether to apply the MSE/huber on each pixel or on the overall count
         mask_loss_weight (Optional[float]): Weight for the mask-auxiliary loss term.
         huber_delta (Optional[float]): Delta parameter for Huber regression.
         mask_loss_alpha (Optional[float]): Positive-class weight in FocalLoss.
@@ -87,6 +88,7 @@ class BaseParams:
     l2_reg: Optional[float] = 1e-4
     lr_schedule: Optional[str] = None
     ssim_weight: Optional[float] = None
+    mse_weight: Optional[float] = None
     use_count_loss: Optional[bool] = False
     mask_loss_weight: Optional[float] = None
     huber_delta: Optional[float] = None

@@ -156,15 +156,17 @@ class MaskMSESSIMLoss(nn.Module):
         """
         super().__init__()
         self.use_count_loss = params.use_count_loss
-        self.huber_loss = nn.HuberLoss(delta=params.huber_delta)
+        huber_delta = params.huber_delta*params.label_scaler if self.training else params.huber_delta
+        self.huber_loss = nn.HuberLoss(delta=huber_delta)
         self.mask_loss_fn = smp.losses.FocalLoss(
             mode="binary",
             alpha=params.mask_loss_alpha,  # Weight for the positive class (foreground)
             gamma=params.mask_loss_gamma,  # Focusing parameter (2.0 is standard)
         )
         self.ssim_weight = params.ssim_weight
-        self.huber_weight = 1.0 - self.ssim_weight
+        self.huber_weight = params.mse_weight
         self.mask_loss_weight = params.mask_loss_weight
+        self.label_scaler = params.label_scaler
 
         # 3 learnable parameters for Huber (Pixel/Count), SSIM, and Mask
         self.log_vars = (
@@ -193,14 +195,13 @@ class MaskMSESSIMLoss(nn.Module):
             pred_target = pred_density
             gt_target = gt_density
 
-        raw_huber = self.huber_loss(pred_target, gt_target) * self.huber_weight
+        raw_huber = self.huber_loss(pred_target, gt_target)
 
         max_val = torch.clamp(gt_density.max(), min=1e-5)
         ssim_score = (
             structural_similarity_index_measure(
                 pred_density, gt_density, data_range=max_val
             )
-            * self.ssim_weight
         )
         raw_ssim = 1.0 - ssim_score
 
@@ -215,6 +216,10 @@ class MaskMSESSIMLoss(nn.Module):
         else:
             loss_huber = raw_huber
             loss_ssim = raw_ssim
+        loss_huber *= self.huber_weight
+        if self.training:
+            loss_huber /= self.label_scaler
+        loss_ssim *= self.ssim_weight
 
         total_loss = loss_huber + loss_ssim
 
@@ -238,7 +243,8 @@ class MaskMSESSIMLoss(nn.Module):
                 ) + self.log_vars[2]
             else:
                 loss_mask = raw_mask
-            total_loss += self.mask_loss_weight * loss_mask
+            loss_mask = self.mask_loss_weight * loss_mask
+            total_loss += loss_mask
 
             loss_dict["loss_mask"] = loss_mask
             loss_dict["raw_mask"] = raw_mask
