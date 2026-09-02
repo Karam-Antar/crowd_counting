@@ -143,84 +143,108 @@ class CountPenaltyLoss(nn.Module):
 
 
 class MaskMSESSIMLoss(nn.Module):
-    """Combine density regression, SSIM, and foreground-mask supervision in one module."""
+    """Combine density regression (pixel-wise or total count), SSIM, and foreground-mask supervision."""
+
     def __init__(self, params: BaseParams):
         """Initialize the mask-aware composite loss.
 
         Args:
             params (BaseParams): Parameter bundle controlling Huber loss, mask focal loss,
                 and uncertainty weighting.
+            use_count_huber (bool): If True, applies Huber loss to the total image count
+                (spatial sum). If False, applies Huber loss pixel-wise (default).
         """
         super().__init__()
-        self.mse = nn.HuberLoss(delta=params.huber_delta)
+        self.use_count_loss = params.use_count_loss
+        self.huber_loss = nn.HuberLoss(delta=params.huber_delta)
         self.mask_loss_fn = smp.losses.FocalLoss(
-            mode='binary',
-            alpha=params.mask_loss_alpha, # Weight for the positive class (foreground)
-            gamma=params.mask_loss_gamma,   # Focusing parameter (2.0 is standard)
+            mode="binary",
+            alpha=params.mask_loss_alpha,  # Weight for the positive class (foreground)
+            gamma=params.mask_loss_gamma,  # Focusing parameter (2.0 is standard)
         )
         self.ssim_weight = params.ssim_weight
-        self.mse_weight = 1-self.ssim_weight
+        self.huber_weight = 1.0 - self.ssim_weight
         self.mask_loss_weight = params.mask_loss_weight
-        # self.use_uncertainty = params.use_uncertainty_weighting
-        # 3 learnable parameters for MSE, SSIM, and Mask
-        # Initialized to 0 (since they represent log(variance))
-        self.log_vars = nn.Parameter(torch.tensor([1.0, 0.0, -1.0], dtype=torch.float32)) if params.use_uncertainty_weighting else None
+
+        # 3 learnable parameters for Huber (Pixel/Count), SSIM, and Mask
+        self.log_vars = (
+            nn.Parameter(torch.tensor([1.0, 0.0, -1.0], dtype=torch.float32))
+            if params.use_uncertainty_weighting
+            else None
+        )
         self.gt_mask_threshold = params.gt_mask_threshold
 
     def forward(self, pred_density, mask_logits, gt_density):
-        """Compute the full mask-aware composite loss and associated sub-loss breakdown.
+        """Compute the composite loss.
 
         Args:
-            pred_density (torch.Tensor): Predicted density map batch.
+            pred_density (torch.Tensor): Predicted density map batch [B, C, H, W] or [B, H, W].
             mask_logits (torch.Tensor): Foreground logit mask before sigmoid activation.
             gt_density (torch.Tensor): Ground-truth density target batch.
 
         Returns:
             tuple[torch.Tensor, dict]: Combined scalar loss and dictionary of component losses.
         """
-        raw_mse = self.mse(pred_density, gt_density) * self.mse_weight
-        
-        max_val = torch.clamp(gt_density.max(), min=1e-5)
-        ssim_score = structural_similarity_index_measure(pred_density, gt_density, data_range=max_val) * self.ssim_weight
-        raw_ssim = 1.0 - ssim_score
-        
-        # Formula: (Loss / (2 * exp(log_var))) + (log_var / 2)
-        # The log_var term penalizes the network for just making the denominator huge
-        if self.log_vars:
-            loss_mse = (raw_mse * torch.exp(-self.log_vars[0])) + self.log_vars[0]
-            loss_ssim = (raw_ssim * torch.exp(-self.log_vars[1])) + self.log_vars[1]
+        # Apply Huber loss either to spatial sums (total count) or per-pixel
+        if self.use_count_loss:
+            pred_target = pred_density.sum(dim=(-2, -1))
+            gt_target = gt_density.sum(dim=(-2, -1))
         else:
-            loss_mse = raw_mse
+            pred_target = pred_density
+            gt_target = gt_density
+
+        raw_huber = self.huber_loss(pred_target, gt_target) * self.huber_weight
+
+        max_val = torch.clamp(gt_density.max(), min=1e-5)
+        ssim_score = (
+            structural_similarity_index_measure(
+                pred_density, gt_density, data_range=max_val
+            )
+            * self.ssim_weight
+        )
+        raw_ssim = 1.0 - ssim_score
+
+        # Uncertainty weighting formula: (Loss / (2 * exp(log_var))) + (log_var / 2)
+        if self.log_vars:
+            loss_huber = (
+                raw_huber * torch.exp(-self.log_vars[0])
+            ) + self.log_vars[0]
+            loss_ssim = (raw_ssim * torch.exp(-self.log_vars[1])) + self.log_vars[
+                1
+            ]
+        else:
+            loss_huber = raw_huber
             loss_ssim = raw_ssim
 
-        total_loss = loss_mse + loss_ssim
-        # Prepare loss dictionary to track individual parts
+        total_loss = loss_huber + loss_ssim
+
+        # Prepare loss dictionary
         loss_dict = {
-            'loss_mse': loss_mse,
-            'loss_ssim': loss_ssim,
-            'raw_mse': raw_mse,
-            'raw_ssim': raw_ssim,
+            "loss_huber": loss_huber,
+            "loss_ssim": loss_ssim,
+            "raw_huber": raw_huber,
+            "raw_ssim": raw_ssim,
         }
         if self.log_vars:
-            loss_dict['log_var_mse'] = self.log_vars[0]
-            loss_dict['log_var_ssim'] = self.log_vars[1]
-        
+            loss_dict["log_var_huber"] = self.log_vars[0]
+            loss_dict["log_var_ssim"] = self.log_vars[1]
+
         if mask_logits is not None:
             gt_mask = (gt_density > self.gt_mask_threshold).float()
             raw_mask = self.mask_loss_fn(mask_logits, gt_mask)
             if self.log_vars:
-                loss_mask = (raw_mask * torch.exp(-self.log_vars[2])) + self.log_vars[2]
+                loss_mask = (
+                    raw_mask * torch.exp(-self.log_vars[2])
+                ) + self.log_vars[2]
             else:
                 loss_mask = raw_mask
             total_loss += self.mask_loss_weight * loss_mask
-            # print(f"MSE: {raw_mse.item():.4f} | SSIM: {raw_ssim.item():.4f} | Mask: {raw_mask.item():.4f}")
-            # print(f"Scaled MSE: {loss_mse.item():.4f} | Scaled SSIM: {loss_ssim.item():.4f} | Scaled Mask: {loss_mask.item():.4f}")
-            # print()
-            loss_dict['loss_mask'] = loss_mask
-            loss_dict['raw_mask'] = raw_mask
+
+            loss_dict["loss_mask"] = loss_mask
+            loss_dict["raw_mask"] = raw_mask
             if self.log_vars:
-                loss_dict['log_var_mask'] = self.log_vars[2]
-            
+                loss_dict["log_var_mask"] = self.log_vars[2]
+
         return total_loss, loss_dict
 
 
