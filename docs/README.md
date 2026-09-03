@@ -43,6 +43,16 @@ The trained crowd-counting model is available through a live production applicat
 
 The application currently serves **model version 75** from the MLflow Model Registry. This deployment demonstrates that the model can be used in a complete path from an uploaded image to a predicted crowd count using the registered model that is being automatically loaded in production environment from MLflow registry.
 
+## Model architecture at a glance
+
+The production model uses a **MAnet encoder-decoder architecture with a ConvNeXt-Base encoder**. Its decoder reconstructs a full-resolution density map, while the attention branch helps distinguish people from visually confusing backgrounds. Soft attention gating and a final convolution make the prediction less sensitive to individual attention errors.
+
+![model_architecture_depth_4](06-assets/diagrams/depth_4_crowd_counter_v75_MAnet_convnext_base-1.png)
+
+**[Open or download the full v75 architecture diagram (PDF)](06-assets/diagrams/crowd_counter_v75_MAnet_convnext_base.pdf)**
+
+The diagram describes the model with an input of `3 x 256 x 256`, a frozen ConvNeXt-Base encoder, trainable MAnet decoder components, an attention head, density features, soft gating, and a final density convolution. The model contains approximately **121.5 million parameters**, of which approximately **34.0 million are trainable** in the inspected v75 configuration.
+
 ## Results snapshot
 
 The project includes a comparison snapshot showing the proposed model alongside established crowd-counting references. The displayed proposed result is **MAE 68.78** and **RMSE 113.93**.
@@ -50,6 +60,28 @@ The project includes a comparison snapshot showing the proposed model alongside 
 ![Crowd counting benchmark comparison](06-assets/screenshots/metrics_comparsion_table.png)
 
 The comparison image is presented as a project result snapshot. Reproducibility depends on the dataset split, preprocessing, model configuration, loss weights, and evaluation procedure used for the run.
+
+## Input and output example
+
+The example below shows the model receiving a dense crowd image and producing a spatial prediction with an estimated count of **2793.64**. The output is a density visualization: brighter regions indicate higher predicted crowd density.
+
+![Input crowd image and v75 density prediction](06-assets/screenshots/0580_v75.png)
+
+## Qualitative examples
+
+The following examples compare the original crowd image, its ground-truth density map, and the prediction produced by model version 75. They show the model across different crowd densities and visual conditions:
+
+| Example | Ground-truth count | Predicted count |
+| --- | ---: | ---: |
+| ShanghaiTech Part A sample 4 | 381.93 | 398.68 |
+| ShanghaiTech Part A sample 7 | 427.61 | 465.75 |
+| ShanghaiTech Part A sample 8 | 1163.24 | 1251.53 |
+
+![ShanghaiTech Part A sample 4: original image, ground truth, and prediction](06-assets/screenshots/sample_4_part_a.png)
+
+![ShanghaiTech Part A sample 7: original image, ground truth, and prediction](06-assets/screenshots/sample_7_part_a.png)
+
+![ShanghaiTech Part A sample 8: original image, ground truth, and prediction](06-assets/screenshots/sample_8_part_A.png)
 
 ## Research foundation
 

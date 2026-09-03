@@ -35,3 +35,4 @@ __pycache__/
 !docs/06-assets/
 !docs/06-assets/**/*.png
 !docs/06-assets/**/*.jpg
+!docs/06-assets/**/*.pdf
