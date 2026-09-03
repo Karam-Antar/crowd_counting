@@ -65,7 +65,9 @@ The following comparison places the proposed model alongside established crowd-c
 | DM-Count | Wang et al. (2021) | 59.7 | 95.7 |
 | **Proposed model** | **Project evaluation (2025/2026)** | **68.78** | **113.93** |
 
-These values are presented as a project result snapshot. Reproducibility depends on the dataset split, preprocessing, model configuration, loss weights, and evaluation procedure used for the run.
+The proposed model also achieved an MBE of **-1.71**, indicating very low overall prediction bias and only slight underestimation. These values are presented as a project result snapshot. 
+
+Reproducibility depends on the dataset split, preprocessing, model configuration, loss weights, and evaluation procedure used for the run.
 
 ## Input and output example
 
