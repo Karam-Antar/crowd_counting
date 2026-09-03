@@ -6,8 +6,6 @@
 - scripts/: dataset conversion, training, cleanup, and tuning entry points
 - notebooks/: exploratory analysis and notebooks for investigation
 - docs/: project knowledge, architecture, and experiment history
-- trained_models/: saved checkpoints and model artifacts
-- logs/: runtime and training logs
 
 ## Most important source areas
 
@@ -16,6 +14,8 @@
 - src/experiment/: experiment orchestration and tuning logic
 - src/core/: inference and serving behavior
 - src/config.py: global config, data paths, and fixed project constants
+
+Training checkpoints and MLflow artifacts are runtime outputs and are not part of the checked-in repository tree.
 
 ## Why the repo matters
 

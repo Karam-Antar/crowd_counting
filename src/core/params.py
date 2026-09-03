@@ -159,11 +159,12 @@ class BaseParams:
             # 4. Composite Loss Parameters 
             # Centered around your baseline: ssim=0.3, alpha=0.81, gamma=3.17, delta=5
             loss_function='mask_mse_ssim',
-            ssim_weight=trial.suggest_float("ssim_weight", 0.1, 0.5),
-            mask_loss_weight=trial.suggest_float("mask_loss_weight", 0.5, 1.0),  # Anchor weight (keep fixed, tune others relative to this)
+            ssim_weight=trial.suggest_float("ssim_weight", 1*1, 1*2.5),
+            mse_weight=trial.suggest_float("mse_weight", 1e-6*1, 1e-6*2),
+            mask_loss_weight=trial.suggest_float("mask_loss_weight", 10*0.5, 10*1.0),  # Anchor weight (keep fixed, tune others relative to this)
             mask_loss_alpha=trial.suggest_float("mask_loss_alpha", 0.6, 0.95),
             mask_loss_gamma=trial.suggest_float("mask_loss_gamma", 2.0, 4.0),
-            huber_delta=trial.suggest_float("huber_delta", 2.0, 13),
+            huber_delta=trial.suggest_float("huber_delta", 1.0, 10),
             gt_mask_threshold=0,
 
             # 5. Regularization (Optional but recommended for ConvNeXt)

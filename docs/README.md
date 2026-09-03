@@ -1,26 +1,25 @@
 # Crowd Counting Project Documentation
 
-This documentation set captures the project’s current state, technical context, experiment history, and design rationale.
+This documentation describes the verified project contract and the decisions that shaped it. It intentionally avoids publishing unsupported run IDs, dates, production claims, or metric tables that are not present in the repository.
+
+## Start here
+
+1. [Project overview](01-onboarding/03-project-overview.md)
+2. [Quickstart](01-onboarding/04-quickstart.md)
+3. [Dataset contract](01-datasets.md)
+4. [Data pipeline](02-data-pipeline.md)
+5. [Architecture](03-architecture/05-system-overview.md)
+6. [Decision log](06-decisions/01-decision-log.md)
 
 ## Documentation map
 
-- [01-onboarding](01-onboarding): repository overview, quick start, and contributor guidance
-- [02-context](02-context): problem framing, project goals, constraints, and domain background
-- [03-architecture](03-architecture): system design, data flow, and model/training pipeline
-- [04-data](04-data): dataset definitions, data processing, and known data issues
-- [05-experiments](05-experiments): MLflow run tracking and experiment comparison guidance
-- [06-decisions](06-decisions): ADRs and notes about removed or superseded ideas
-- [07-training](07-training): training workflow, tuning, reproducibility, and metrics
-- [08-deployment](08-deployment): serving, inference, and production checklist
-- [09-operations](09-operations): troubleshooting, scripts, setup, and maintenance notes
-- [10-history](10-history): project timeline, changes, and lessons learned
-- [11-reference](11-reference): glossary, commands, config keys, and artifact overview
-- [12-assets](12-assets): diagrams and supporting visuals
+- [Onboarding](01-onboarding): repository orientation and contribution workflow
+- [Context](02-context): problem, goals, constraints, and domain background
+- [Architecture](03-architecture): configuration, data flow, model, inference, and training design
+- [Datasets](01-datasets.md): supported datasets, layouts, labels, and acquisition notes
+- [Data pipeline](02-data-pipeline.md): implemented loading, transforms, padding, batching, and five-crop evaluation
+- [Decisions](06-decisions): chronological decision log, ADRs, migrations, and rationale for removed approaches
 
-## Purpose
+## Scope note
 
-This project is a crowd-counting system built around density-map regression. It has gone through multiple experimental directions, and the documentation exists to preserve the current baseline along with the historical reasoning behind the changes.
-
-## How to read these docs
-
-Start with the onboarding section, then move to data and architecture to understand the real operating contract. If you are debugging a run or trying to understand why something was changed, read the decisions and history sections.
+The decision records are the project’s experiment history. Dataset and preprocessing behavior are defined by the two root data documents. Source code and scripts remain authoritative when implementation details differ from historical descriptions.

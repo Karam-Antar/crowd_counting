@@ -12,12 +12,12 @@ This repository is best understood as a research project with operational toolin
 
 ## Recommended reading order
 
-1. [project-overview.md](03-project-overview.md)
-2. [repo-map.md](05-repo-map.md)
-3. [quickstart.md](04-quickstart.md)
-4. [data/data_pipeline.md](../04-data/01-data-pipeline.md)
-5. [data/datasets.md](../04-data/04-datasets.md)
-6. [architecture/system-overview.md](../03-architecture/05-system-overview.md)
+1. [Project overview](03-project-overview.md)
+2. [Repository map](05-repo-map.md)
+3. [Quickstart](04-quickstart.md)
+4. [Dataset contract](../01-datasets.md)
+5. [Data pipeline](../02-data-pipeline.md)
+6. [System overview](../03-architecture/05-system-overview.md)
 
 ## Good workflow
 
@@ -26,3 +26,5 @@ This repository is best understood as a research project with operational toolin
 3. Run the relevant training script.
 4. Inspect saved metrics and MLflow metadata.
 5. Record important changes in the decisions and history docs.
+
+The `docs/06-decisions/` directory contains the complete ADR record. Do not rewrite an ADR to make a current implementation look cleaner; add a new decision when the project changes direction.
