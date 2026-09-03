@@ -12,7 +12,7 @@ pip install -r requirements.txt
 
 For serving-specific dependencies, also install `requirements-serve.txt`.
 
-Confirm that dataset paths in `src/config.py` or the environment configuration point to the local data directory. The required layout and image/label ordering contract are documented in [01-datasets.md](../01-datasets.md).
+Confirm that dataset paths in `src/config.py` or the environment configuration point to the local data directory. The required layout and image/label ordering contract are documented in [01-datasets.md](../05-data/01-datasets.md).
 
 ## Training
 

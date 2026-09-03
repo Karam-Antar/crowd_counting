@@ -30,3 +30,8 @@ __pycache__/
 *.tar
 *.npy
 *.zip
+
+# Not Ignored
+!docs/06-assets/
+!docs/06-assets/**/*.png
+!docs/06-assets/**/*.jpg
