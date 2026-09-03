@@ -35,6 +35,14 @@ Several improvements came from addressing the learning problem directly:
 
 This combination reflects the central lesson of the project: **data quality, learning objectives, and evaluation design can matter as much as architecture selection.**
 
+## Live production model
+
+The trained crowd-counting model is available through a live production application:
+
+**[Open the live Crowd Counter](https://crowd-counter-by-karam-antar.duckdns.org/)**
+
+The application currently serves **model version 75** from the MLflow Model Registry. This deployment demonstrates that the model can be used in a complete path from an uploaded image to a predicted crowd count using the registered model that is being automatically loaded in production environment from MLflow registry.
+
 ## Results snapshot
 
 The project includes a comparison snapshot showing the proposed model alongside established crowd-counting references. The displayed proposed result is **MAE 68.78** and **RMSE 113.93**.

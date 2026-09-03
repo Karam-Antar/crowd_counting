@@ -5,7 +5,7 @@
 Create and activate a Python environment, then install the repository dependencies:
 
 ```powershell
-conda create -n crowd_counting python=3.10
+conda create -n crowd_counting python=3.13.12
 conda activate crowd_counting
 pip install -r requirements.txt
 ```
