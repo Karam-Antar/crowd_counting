@@ -55,11 +55,17 @@ The diagram describes the model with an input of `3 x 256 x 256`, a frozen ConvN
 
 ## Results snapshot
 
-The project includes a comparison snapshot showing the proposed model alongside established crowd-counting references. The displayed proposed result is **MAE 68.78** and **RMSE 113.93**.
+The following comparison places the proposed model alongside established crowd-counting references. The proposed model records **MAE 68.78** and **RMSE 113.93** in the displayed evaluation.
 
-![Crowd counting benchmark comparison](06-assets/screenshots/metrics_comparsion_table.png)
+| Model | Academic reference | MAE | RMSE |
+| --- | --- | ---: | ---: |
+| MCNN | Zhang et al. (2016) | 110.2 | 173.2 |
+| CSRNet | Li et al. (2018) | 68.2 | 115.0 |
+| CANNet | Liu et al. (2019) | 62.3 | 100.0 |
+| DM-Count | Wang et al. (2021) | 59.7 | 95.7 |
+| **Proposed model** | **Project evaluation (2025/2026)** | **68.78** | **113.93** |
 
-The comparison image is presented as a project result snapshot. Reproducibility depends on the dataset split, preprocessing, model configuration, loss weights, and evaluation procedure used for the run.
+These values are presented as a project result snapshot. Reproducibility depends on the dataset split, preprocessing, model configuration, loss weights, and evaluation procedure used for the run.
 
 ## Input and output example
 
