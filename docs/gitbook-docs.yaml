@@ -29,3 +29,7 @@ site:
           content:
             directory: ./crowd-counter-client
             language: en
+    - type: section-group
+      key: section-group-1
+      title: Crowd Counting
+      children: []
