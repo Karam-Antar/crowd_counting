@@ -11,7 +11,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 # 3. Standard imports
-from typing import Optional
 import torch
 import lightning.pytorch as pl
 import mlflow
@@ -19,10 +18,7 @@ import mlflow
 from src import config
 from src.core.params import BaseParams
 from src.experiment import StandardRunner
-from src.experiment.optuna_tuner import OptunaTuner
-from src.models.lit_model import BaseLitModel
 from src.models.model import CrowdCounter
-from src.utils import helpers
 from src.utils.experiment_trackers import MLFlowTracker
 
 # Set random seeds for reproducibility
