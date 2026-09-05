@@ -16,3 +16,16 @@ site:
           content:
             directory: ./training-and-testing-lab/crowd-counting
             language: en
+    - type: section
+      key: section-2
+      title: Model Client
+      path: model-client
+      children:
+        - type: space
+          key: space-2
+          title: Model Client
+          path: crowd-counter-client
+          default: true
+          content:
+            directory: ./model-client/crowd-counter-client
+            language: en
