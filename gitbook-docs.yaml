@@ -6,4 +6,4 @@ site:
       key: crowd-counting-docs
       title: Crowd Counting
       content:
-        directory: ./
+        directory: ./docs
