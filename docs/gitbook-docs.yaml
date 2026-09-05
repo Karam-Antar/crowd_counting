@@ -6,5 +6,6 @@ site:
       key: crowd-counting-docs
       title: Crowd Counting
       path: crowd-counting
+      default: true
       content:
         directory: ./
