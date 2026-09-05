@@ -3,16 +3,16 @@ site:
   title: Karam Antar Docs
   structure:
     - type: section
-      key: section-2
-      title: Crowd Counter Client
-      path: crowd-counter-client
+      key: section-1
+      title: Training & Testing Lab
+      path: training-and-testing-lab
       default: true
       children:
         - type: space
           key: space-1
-          title: Crowd Counter Client
-          path: crowd-counter-client
+          title: Training & Testing Lab
+          path: crowd-counting
           default: true
           content:
-            directory: ./crowd-counter-client
+            directory: ./training-and-testing-lab/crowd-counting
             language: en
