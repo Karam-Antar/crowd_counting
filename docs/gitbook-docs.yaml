@@ -29,3 +29,15 @@ site:
           content:
             directory: ./model-client/crowd-counter-client
             language: en
+    - type: section
+      key: section-3
+      title: Model API
+      path: model-api
+      children:
+        - type: space
+          key: space-3
+          title: Model API
+          path: crowd-counter-api
+          default: true
+          content:
+            directory: ./docs
