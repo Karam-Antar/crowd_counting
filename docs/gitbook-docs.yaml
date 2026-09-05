@@ -1,0 +1,9 @@
+$schema: https://api.gitbook.com/gitbook-docs.yaml
+site:
+  title: Crowd Counting
+  structure:
+    - type: space
+      key: main-docs
+      title: Documentation
+      content:
+        directory: ./
