@@ -2,35 +2,17 @@ $schema: https://api.gitbook.com/gitbook-docs.yaml
 site:
   title: Crowd Counting Documentation
   structure:
-    - type: section-group
-      key: section-group-1
-      title: Crowd Counting
+    - type: section
+      key: section-2
+      title: Crowd Counter Client
+      path: crowd-counter-client
+      default: true
       children:
-        - type: section
-          key: section-1
-          title: Crowd Counting Lab
-          path: crowd-counting-lab
-          description: ""
-          default: true
-          children:
-            - type: space
-              key: crowd-counting-docs
-              title: Crowd Counting
-              path: crowd-counting
-              default: true
-              content:
-                directory: ./
-                language: en
-        - type: section
-          key: section-2
+        - type: space
+          key: space-1
           title: Crowd Counter Client
           path: crowd-counter-client
-          children:
-            - type: space
-              key: space-1
-              title: Crowd Counter Client
-              path: crowd-counter-client
-              default: true
-              content:
-                directory: ./crowd-counter-client
-                language: en
+          default: true
+          content:
+            directory: ./crowd-counter-client
+            language: en
