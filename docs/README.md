@@ -43,6 +43,11 @@ The trained crowd-counting model is available through a live production applicat
 
 The application currently serves **model version 75** from the MLflow Model Registry. This deployment demonstrates that the model can be used in a complete path from an uploaded image to a predicted crowd count using the registered model that is being automatically loaded in production environment from MLflow registry.
 
+### Serving repositories
+
+- [Crowd Counter API](https://github.com/Karam-Antar/crowd_counter_api)
+- [Crowd Counter Client](https://github.com/Karam-Antar/crowd_counter_client)
+
 ## Model architecture at a glance
 
 The production model uses a **MAnet encoder-decoder architecture with a ConvNeXt-Base encoder**. Its decoder reconstructs a full-resolution density map, while the attention branch helps distinguish people from visually confusing backgrounds. Soft attention gating and a final convolution make the prediction less sensitive to individual attention errors.
