@@ -1,6 +1,6 @@
 $schema: https://api.gitbook.com/gitbook-docs.yaml
 site:
-  title: Karam Antar Docs
+  title: Crowd Counting Docs
   structure:
     - type: section
       key: section-1
