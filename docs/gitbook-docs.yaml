@@ -16,20 +16,20 @@ site:
           content:
             directory: ./
             language: en
-    - type: section
-      key: section-2
-      title: Crowd Counter Client
-      path: crowd-counter-client
-      children:
-        - type: space
-          key: space-1
-          title: Crowd Counter Client
-          path: crowd-counter-client
-          default: true
-          content:
-            directory: ./crowd-counter-client
-            language: en
     - type: section-group
       key: section-group-1
       title: Crowd Counting
-      children: []
+      children:
+        - type: section
+          key: section-2
+          title: Crowd Counter Client
+          path: crowd-counter-client
+          children:
+            - type: space
+              key: space-1
+              title: Crowd Counter Client
+              path: crowd-counter-client
+              default: true
+              content:
+                directory: ./crowd-counter-client
+                language: en
