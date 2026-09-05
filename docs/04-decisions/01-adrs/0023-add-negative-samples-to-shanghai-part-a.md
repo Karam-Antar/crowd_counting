@@ -15,7 +15,7 @@ The attention head had the right loss function (focal loss) but insufficient sup
 
 ## Decision
 
-Manually collect and inject **30–40 negative samples** from the internet into the ShanghaiTech Part A training set:
+Manually collect and inject **30–40 negative samples** from the internet into the ShanghaiTech Part A training set. The collected negative samples were added to the repository's `docs/06-assets/additional-data/` folder:
 
 1. **Easy negatives**: Blank walls, empty rooms, landscape scenes, outdoor scenery with no people
 2. **Hard negatives**: Images containing visual patterns that confuse the model:

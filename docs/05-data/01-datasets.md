@@ -89,4 +89,4 @@ This section is intentionally kept short to summarize the overall data-processin
 - padding is applied to satisfy backbone stride constraints and maintain alignment,
 - batch-level padding and five-crop batching are handled by custom collate functions.
 
-For the full step-by-step pipeline, conditions, and Mermaid diagrams, see [data_pipeline.md](data_pipeline.md).
+For the full step-by-step pipeline, conditions, and Mermaid diagrams, see [data_pipeline.md](02-data-pipeline.md).
