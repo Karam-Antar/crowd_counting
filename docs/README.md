@@ -19,6 +19,12 @@ The result is a complete research workflow that connects:
 - composite objectives for structure, density, mask confidence, and count accuracy,
 - reproducible training and experiment tracking with PyTorch Lightning, Optuna, and MLflow.
 
+## Input-output example
+
+The example below shows the model receiving a dense crowd image and producing a spatial prediction with an estimated count of **2793.64**. The output is a density visualization: brighter regions indicate higher predicted crowd density.
+
+![Input crowd image and v75 density prediction](06-assets/screenshots/0580_v75.png)
+
 ## What makes the work distinctive
 
 The project was developed through deliberate experimentation rather than by assuming that a more complex model would automatically be better. The documented research process includes 32 architecture, data, loss, evaluation, and systems decisions.
@@ -73,12 +79,6 @@ The following comparison places the proposed model alongside established crowd-c
 The proposed model also achieved an MBE of **-1.71**, indicating very low overall prediction bias and only slight underestimation. These values are presented as a project result snapshot. 
 
 Reproducibility depends on the dataset split, preprocessing, model configuration, loss weights, and evaluation procedure used for the run.
-
-## Input and output example
-
-The example below shows the model receiving a dense crowd image and producing a spatial prediction with an estimated count of **2793.64**. The output is a density visualization: brighter regions indicate higher predicted crowd density.
-
-![Input crowd image and v75 density prediction](06-assets/screenshots/0580_v75.png)
 
 ## Qualitative examples
 
