@@ -80,6 +80,16 @@ The proposed model also achieved an MBE of **-1.71**, indicating very low overal
 
 Reproducibility depends on the dataset split, preprocessing, model configuration, loss weights, and evaluation procedure used for the run.
 
+## Ablation studies
+
+To understand the contribution of the attention head, the architecture was compared against historical baseline runs trained without that branch. The comparison below illustrates how the validation MAE changes when the attention mechanism is present and highlights the stronger false-positive suppression achieved in more cluttered scenes.
+
+![Ablation study comparing validation MAE and false-positive suppression with and without the attention head](06-assets/screenshots/ablation_studies.png)
+
+This is not a perfectly isolated one-variable experiment. The reported comparisons use the closest recorded runs that omitted the attention branch, but it is important to note that the attention head was not the only configuration difference between those historical iterations. Even with that caveat, the pattern is consistent with the project’s design goals: the attention branch helps the model focus on crowd-like activations while suppressing background structures that can otherwise inflate density estimates.
+
+The practical effect is most visible in dense or visually ambiguous scenes, where false positives can dominate the error signal. In that setting, the attention mechanism acts as a learned gating signal that improves selectivity and makes the density prediction less sensitive to non-crowd texture and distractors.
+
 ## Qualitative examples
 
 The following examples compare the original crowd image, its ground-truth density map, and the prediction produced by model version 75. They show the model across different crowd densities and visual conditions:
