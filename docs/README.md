@@ -53,6 +53,7 @@ The application currently serves **model version 75** from the MLflow Model Regi
 
 - [Crowd Counter API](https://github.com/Karam-Antar/crowd_counter_api)
 - [Crowd Counter Client](https://github.com/Karam-Antar/crowd_counter_client)
+Note: these repos could be private
 
 ## Model architecture at a glance
 
