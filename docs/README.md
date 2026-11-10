@@ -45,7 +45,7 @@ This combination reflects the central lesson of the project: **data quality, lea
 
 The trained crowd-counting model is available through a live production application:
 
-**[Open the live Crowd Counter](https://crowd-counter-by-karam-antar.duckdns.org/)**
+**[Open the live Crowd Counter](https://crowd-counter.karam-antar.dev/)**
 
 The application currently serves **model version 75** from the MLflow Model Registry. This deployment demonstrates that the model can be used in a complete path from an uploaded image to a predicted crowd count using the registered model that is being automatically loaded in production environment from MLflow registry.
 
